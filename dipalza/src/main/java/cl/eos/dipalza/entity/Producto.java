@@ -1,8 +1,19 @@
 package cl.eos.dipalza.entity;
 
-import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.hibernate.annotations.SQLRestriction;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "producto", schema = "dbo")
@@ -30,12 +41,6 @@ public class Producto {
 	@Column(name = "Stock", columnDefinition = "money")
 	private BigDecimal stock;
 
-	@Column(name = "Pieces")
-	private Integer pieces;
-
-	@Column(name = "Numbered")
-	private Boolean numbered;
-
 	// En la tabla se llama "Codigolla" (con doble L)
 	@Column(name = "CodigoIla", length = 20)
 	private String codigoila;
@@ -48,6 +53,16 @@ public class Producto {
 	@Column(name = "rv")
 	private byte[] rv;
 
+
+	private Boolean numbered;
+
+	private BigDecimal pieces;
+	// ---- Relación con Numerado ----
+	@OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true)
+	@SQLRestriction("estado = 'D'")
+	private List<Numerado> numerados = new ArrayList<>();
+	
+	
 	public Producto() {
 	}
 
@@ -108,22 +123,6 @@ public class Producto {
 		this.stock = stock;
 	}
 
-	public Integer getPieces() {
-		return pieces;
-	}
-
-	public void setPieces(Integer pieces) {
-		this.pieces = pieces;
-	}
-
-	public Boolean getNumbered() {
-		return numbered;
-	}
-
-	public void setNumbered(Boolean numbered) {
-		this.numbered = numbered;
-	}
-
 	public String getCodigoila() {
 		return codigoila;
 	}
@@ -146,5 +145,29 @@ public class Producto {
 
 	public void setRv(byte[] rv) {
 		this.rv = rv;
+	}
+
+	public List<Numerado> getNumerados() {
+		return numerados;
+	}
+
+	public void setNumerados(List<Numerado> numerados) {
+		this.numerados = numerados;
+	}
+
+	public Boolean getNumbered() {
+		return numbered;
+	}
+
+	public void setNumbered(Boolean numbered) {
+		this.numbered = numbered;
+	}
+
+	public BigDecimal getPieces() {
+		return pieces;
+	}
+
+	public void setPieces(BigDecimal pieces) {
+		this.pieces = pieces;
 	}
 }

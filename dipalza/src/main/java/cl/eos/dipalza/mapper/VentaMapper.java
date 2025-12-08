@@ -8,14 +8,12 @@ import java.util.stream.Collectors;
 
 import cl.eos.dipalza.entity.Cliente;
 import cl.eos.dipalza.entity.CondicionVenta;
+import cl.eos.dipalza.entity.Numerado;
 import cl.eos.dipalza.entity.Ruta;
 import cl.eos.dipalza.entity.Vendedor;
 import cl.eos.dipalza.entity.Venta;
 import cl.eos.dipalza.entity.VentaDetalle;
 import cl.eos.dipalza.entity.VentaDetallePieza;
-import cl.eos.dipalza.entity.ids.ClienteId;
-import cl.eos.dipalza.entity.ids.VendedorId;
-import cl.eos.dipalza.exceptions.MissingDataException;
 import cl.eos.dipalza.model.venta.VentaDTO;
 import cl.eos.dipalza.model.venta.VentaDetalleDTO;
 import cl.eos.dipalza.model.venta.VentaDetallePiezaDTO;
@@ -27,19 +25,17 @@ public class VentaMapper {
 		dto.setId(venta.getId());
 		dto.setFecha(venta.getFecha());
 
-
 		dto.setRutCliente(venta.getCliente().getId().getRut());
 		dto.setCodigoCliente(venta.getCliente().getId().getCodigo());
 		dto.setNombreCliente(venta.getCliente().getRazon());
-		
+
 		dto.setCodigoVendedor(venta.getVendedor().getId().getCodigo());
 		dto.setTipoVendedor(venta.getVendedor().getId().getTipo());
 		dto.setNombreVendedor(venta.getVendedor().getNombre());
-		
-		
+
 		dto.setCodigoRuta(venta.getRuta().getCodigo());
 		dto.setNombreRuta(venta.getRuta().getDescripcion());
-		
+
 		dto.setCodigoCondicionVenta(venta.getCondicionVenta().getCodigo());
 		dto.setNombreCondicionVenta(venta.getCondicionVenta().getDescripcion());
 
@@ -61,14 +57,15 @@ public class VentaMapper {
 		}
 		return dto;
 	}
-	
+
 	public static VentaDetalleDTO toVentaDetalleDTO(VentaDetalle d) {
 
 		VentaDetalleDTO dto = new VentaDetalleDTO();
 
 		dto.setId(d.getId());
-		dto.setVentaId(d.getVentaId());
+		dto.setVentaId(d.getVenta().getId());
 		dto.setIdProducto(d.getProductoId());
+		dto.setNombreProducto(d.getProducto() == null ? "" : d.getProducto().getDescripcion());
 		dto.setCantidad(nvl(d.getCantidad()));
 		dto.setPrecioUnitario(nvl(d.getPrecioUnitario()));
 		dto.setPorcentajeDescuento(nvl(d.getPorcentajeDescuento()));
@@ -82,8 +79,10 @@ public class VentaMapper {
 		dto.setPiezas(d.getPiezas());
 		// Mapear las piezas numeradas asociadas a este detalle
 		if (d.getPiezasUsadas() != null && !d.getPiezasUsadas().isEmpty()) {
-			List<VentaDetallePiezaDTO> piezasDto = d.getPiezasUsadas().stream()
-					.map(VentaMapper::toVentaDetaalleiezaDTO) // Mapeamos cada pieza numerada
+			List<VentaDetallePiezaDTO> piezasDto = d.getPiezasUsadas().stream().map(VentaMapper::toVentaDetaalleiezaDTO) // Mapeamos
+																															// cada
+																															// pieza
+																															// numerada
 					.collect(Collectors.toList());
 			dto.setPiezasDetalle(piezasDto); // Establecemos las piezas en el DTO
 		} else {
@@ -98,6 +97,8 @@ public class VentaMapper {
 		piezaDto.setId(pieza.getId()); // Asumimos que invId es el identificador de la pieza
 		piezaDto.setPeso(nvl(pieza.getPeso())); // El peso es opcional
 		piezaDto.setCreadoEn(pieza.getCreadoEn() != null ? pieza.getCreadoEn() : LocalDate.now());
+		piezaDto.setDetalleVentaId(pieza.getVentaDetalle().getId());
+		piezaDto.setInventarioId(pieza.getNumerado().getId());
 
 		return piezaDto;
 	}
@@ -105,41 +106,9 @@ public class VentaMapper {
 	private static BigDecimal nvl(BigDecimal x) {
 		return x == null ? BigDecimal.ZERO : x;
 	}
-	
-	
+
 	// Mapeo de VentaCreateDTO a Venta
-	public static Venta toVentaEntity(VentaDTO dto) {
-
-
-		if (dto.getCodigoCliente() == null)
-			throw new MissingDataException("Falta el código de cliente!");
-		if (dto.getRutCliente() == null || dto.getRutCliente().isBlank())
-			throw new MissingDataException("Falta el rut del cliente!");
-
-		if (dto.getCodigoVendedor() == null || dto.getCodigoVendedor().isBlank())
-			throw new MissingDataException("Falta el código de vendedor!");
-
-		if (dto.getTipoVendedor() == null || dto.getTipoVendedor().isBlank())
-			throw new MissingDataException("Falta el tipo de vendedor!");
-
-		if (dto.getCodigoRuta() == null || dto.getCodigoRuta().isBlank())
-			throw new MissingDataException("Falta el código de ruta!");
-
-		if (dto.getCodigoCondicionVenta() == null || dto.getCodigoCondicionVenta().isBlank())
-			throw new MissingDataException("Falta la condición de venta!");
-		
-		Cliente cliente = new Cliente();
-		cliente.setId(new ClienteId(dto.getRutCliente(), dto.getCodigoCliente()));
-
-		Vendedor vendedor = new Vendedor();
-		vendedor.setId(new VendedorId(dto.getCodigoVendedor(), dto.getTipoVendedor()));
-
-		Ruta ruta = new Ruta();
-		ruta.setCodigo(dto.getCodigoRuta());
-		
-		CondicionVenta condicionVenta =  new CondicionVenta();
-		condicionVenta.setCodigo(dto.getCodigoCondicionVenta());
-		
+	public static Venta toVentaEntity(VentaDTO dto, Cliente cliente, Vendedor vendedor, Ruta ruta, CondicionVenta condicionVenta) {
 
 		Venta venta = new Venta();
 		// Mapear propiedades de la cabecera de la venta
@@ -153,24 +122,30 @@ public class VentaMapper {
 		venta.setTotal(BigDecimal.ZERO);
 		venta.setTotalDescuento(BigDecimal.ZERO);
 		venta.setTotalIla(BigDecimal.ZERO);
-		venta.setTotalIva( BigDecimal.ZERO);
-		
-        if (dto.getDetalles() != null) {
-            List<VentaDetalle> detalles = dto.getDetalles().stream()
-                    .map((VentaDetalleDTO detalleDto) -> toVentaDetalleEntity(detalleDto, venta.getId()))
-                    .collect(Collectors.toList());
-            venta.setDetalles(detalles);
-        }
-		
+		venta.setTotalIva(BigDecimal.ZERO);
+
+		if (dto.getDetalles() != null) {
+			List<VentaDetalle> detalles = dto.getDetalles().stream()
+					.map((VentaDetalleDTO detalleDto) -> toVentaDetalleEntity(detalleDto, venta))
+					.collect(Collectors.toList());
+			venta.setDetalles(detalles);
+		}
+
 		return venta;
 	}
 
 	// Mapeo de VentaDetalleCreateDTO a VentaDetalle
-	public static VentaDetalle toVentaDetalleEntity(VentaDetalleDTO dto, Long ventaId) {
+	public static VentaDetalle toVentaDetalleEntity(VentaDetalleDTO dto, Venta venta) {
+
 		VentaDetalle detalle = new VentaDetalle();
-		
+		if (dto.getId() == null || dto.getId() == -1) {
+			detalle.setId(null); // <- MUY IMPORTANTE
+		} else {
+			detalle.setId(dto.getId());
+		}
+
 		detalle.setProductoId(dto.getIdProducto());
-		detalle.setVentaId(ventaId);
+		detalle.setVenta(venta);
 		detalle.setCantidad(dto.getCantidad());
 		detalle.setPrecioUnitario(dto.getPrecioUnitario());
 		detalle.setPorcentajeDescuento(dto.getPorcentajeDescuento());
@@ -184,12 +159,27 @@ public class VentaMapper {
 		detalle.setPiezas(dto.getPiezas());
 
 		// Mapear piezas numeradas si vienen en el DTO
-		if (dto.getPiezasDetalle() != null && !dto.getPiezasDetalle().isEmpty()) {
-			List<VentaDetallePieza> piezas = dto.getPiezasDetalle().stream()
-					.map(VentaMapper::toVentaDetallePiezaEntity).toList();
+		if (dto.getPiezasDetalle() != null) {
+			List<VentaDetallePieza> piezas = dto.getPiezasDetalle().stream().map(p -> {
+				VentaDetallePieza pieza = new VentaDetallePieza();
+
+				if (p.getId() == null || p.getId().longValue() == -1)
+					pieza.setId(null); // <- SIEMPRE null para nuevas
+				else
+					pieza.setId(p.getId());
+
+				pieza.setVentaDetalle(detalle); // <- RELACIÓN
+				Numerado numerado =  new Numerado();
+				numerado.setId(p.getInventarioId());
+				pieza.setNumerado(numerado);
+				pieza.setPeso(p.getPeso());
+
+				return pieza;
+			}).toList();
+
 			detalle.setPiezasUsadas(piezas);
 		}
-		
+
 		return detalle;
 	}
 

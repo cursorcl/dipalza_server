@@ -22,12 +22,29 @@ public class ProductoService {
     @Autowired
     private ProductoMapper ProductoMapper;
 
+    /**
+     * Obtiene la lista de productos sin la lista de numerados asociados.
+     * @return lista de productos.
+     */
     public List<ProductoDTO> getAllProductos() {
+        return productoRepository.obtenerTodoResumido()
+                .stream()
+                .map(ProductoMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Obtiene la lista de productos con la lista de numerados asociados.
+     * @return lista de productos.
+     */
+    public List<ProductoDTO> getAllProductosWithNumbered() {
         return productoRepository.findAll()
                 .stream()
                 .map(ProductoMapper::toDTO)
                 .collect(Collectors.toList());
     }
+    
+   
     
     public List<ProductoDTO> getProductosByDescripcion(String descripcion) {
         return productoRepository.getProductosByDescripcion(descripcion)

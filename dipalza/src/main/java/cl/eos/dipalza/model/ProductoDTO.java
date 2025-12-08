@@ -2,6 +2,8 @@ package cl.eos.dipalza.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ProductoDTO {
 
@@ -19,13 +21,15 @@ public class ProductoDTO {
 
 	private BigDecimal stock;
 
-	private Integer pieces;
-
 	private Boolean numbered;
 
 	private String codigoila;
 
 	private LocalDate lastUpdate;
+	
+	private BigDecimal pieces;
+	
+	private List<NumeradoDTO> numerados = new ArrayList<>();
 
 	public String getArticulo() {
 		return articulo;
@@ -83,13 +87,6 @@ public class ProductoDTO {
 		this.stock = stock;
 	}
 
-	public Integer getPieces() {
-		return pieces;
-	}
-
-	public void setPieces(Integer pieces) {
-		this.pieces = pieces;
-	}
 
 	public Boolean getNumbered() {
 		return numbered;
@@ -113,6 +110,22 @@ public class ProductoDTO {
 
 	public void setLastUpdate(LocalDate lastUpdate) {
 		this.lastUpdate = lastUpdate;
+	}
+
+	public List<NumeradoDTO> getNumerados() {
+		return numerados;
+	}
+
+	public void setNumerados(List<NumeradoDTO> numerados) {
+		this.numerados = numerados;
+	}
+
+	public BigDecimal getPieces() {
+		return pieces;
+	}
+
+	public void setPieces(BigDecimal pieces) {
+		this.pieces = pieces;
 	}
 
 }

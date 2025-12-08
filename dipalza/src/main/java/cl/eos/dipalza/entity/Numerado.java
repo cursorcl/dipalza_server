@@ -7,9 +7,12 @@ import jakarta.persistence.Access;
 import jakarta.persistence.AccessType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -17,16 +20,16 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "numerados")
 @Access(AccessType.FIELD)
-public class Numerados {
+public class Numerado {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	// FK lógico al producto (producto.Articulo); si mapeas Producto en esta BD,
-	// puedes cambiar a @ManyToOne
-	@Column(name = "producto_id", length = 255, nullable = false)
-	private String productoId;
+	
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "articulo", nullable = false)
+	private Producto producto;
 
 	@Column(name = "numero", nullable = false)
 	private Integer numero;
@@ -44,7 +47,7 @@ public class Numerados {
 	@Column(name = "actualizado_en", nullable = false)
 	private LocalDate actualizadoEn;
 
-	public Numerados() {
+	public Numerado() {
 	}
 
 	@PrePersist
@@ -67,13 +70,6 @@ public class Numerados {
 		this.id = id;
 	}
 
-	public String getProductoId() {
-		return productoId;
-	}
-
-	public void setProductoId(String productoId) {
-		this.productoId = productoId;
-	}
 
 	public Integer getNumero() {
 		return numero;
@@ -114,6 +110,14 @@ public class Numerados {
 
 	public void setActualizadoEn(LocalDate actualizadoEn) {
 		this.actualizadoEn = actualizadoEn;
+	}
+
+	public Producto getProducto() {
+		return producto;
+	}
+
+	public void setProducto(Producto producto) {
+		this.producto = producto;
 	}
 
 }

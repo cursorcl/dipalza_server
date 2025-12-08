@@ -25,13 +25,9 @@ public class VentaDetalle {
 	Long id;
 
 	
-    // La FK real que se persiste
-    @Column(name = "venta_id", nullable = false)
-    private Long ventaId;
-	
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "venta_id", insertable = false, updatable = false)
-	private Venta venta;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "venta_id", nullable = false)
+    private Venta venta;
 
     // La FK real que se persiste
     @Column(name = "producto_id", nullable = false)
@@ -125,16 +121,12 @@ public class VentaDetalle {
 	
 	
 
-	public Long getVentaId() {
-		return ventaId;
-	}
-
-	public void setVentaId(Long ventaId) {
-		this.ventaId = ventaId;
-	}
-
 	public Venta getVenta() {
 		return venta;
+	}
+
+	public void setVenta(Venta venta) {
+		this.venta = venta;
 	}
 
 	public BigDecimal getPorcentajeDescuento() {
@@ -209,4 +201,23 @@ public class VentaDetalle {
 		this.unidad = unidad;
 	}
 
+	
+	@Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        VentaDetalle that = (VentaDetalle) o;
+        // Si ambos tienen ID, comparamos por ID
+        if (id != null && that.id != null) {
+            return id.equals(that.id);
+        }
+        // Si es nuevo, usamos referencia (o una clave de negocio si tienes)
+        return super.equals(o); 
+    }
+
+    @Override
+    public int hashCode() {
+        // Retornar una constante es seguro para entidades JPA mutables
+        return getClass().hashCode();
+    }
 }

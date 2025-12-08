@@ -9,7 +9,8 @@ public class VentaDetallePiezaDTO implements Serializable {
 	private static final long serialVersionUID = 1L;
 	private Long id; // obligatorio (único global)
 	private BigDecimal peso; // opcional
-	private Long invId;
+	private Long detalleVentaId;
+	private Long inventarioId;
 	private LocalDate creadoEn;
 	
 
@@ -37,12 +38,12 @@ public class VentaDetallePiezaDTO implements Serializable {
 		this.peso = peso;
 	}
 
-	public Long getInvId() {
-		return invId;
+	public Long getInventarioId() {
+		return inventarioId;
 	}
 
-	public void setInvId(Long invId) {
-		this.invId = invId;
+	public void setInventarioId(Long invId) {
+		this.inventarioId = invId;
 	}
 
 	public LocalDate getCreadoEn() {
@@ -51,6 +52,14 @@ public class VentaDetallePiezaDTO implements Serializable {
 
 	public void setCreadoEn(LocalDate creadoEn) {
 		this.creadoEn = creadoEn;
+	}
+
+	public Long getDetalleVentaId() {
+		return detalleVentaId;
+	}
+
+	public void setDetalleVentaId(Long detalleVentaId) {
+		this.detalleVentaId = detalleVentaId;
 	}
 	
 	

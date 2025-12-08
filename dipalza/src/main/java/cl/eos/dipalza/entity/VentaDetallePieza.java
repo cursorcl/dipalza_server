@@ -32,8 +32,8 @@ public class VentaDetallePieza {
 
 	// Asociación al inventario por pieza (tabla numerados), columna FK inv_id
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "inv_id_pieza", unique=true, nullable = false)
-	private Numerados numerado;
+	@JoinColumn(name = "inv_id_pieza", referencedColumnName = "id", unique=true, nullable = false)
+	private Numerado numerado;
 
 	@Column(name = "peso", precision = 19, scale = 4, nullable = false)
 	private BigDecimal peso;
@@ -83,11 +83,11 @@ public class VentaDetallePieza {
 		this.creadoEn = creadoEn;
 	}
 
-	public Numerados getNumerado() {
+	public Numerado getNumerado() {
 		return numerado;
 	}
 
-	public void setNumerado(Numerados numerado) {
+	public void setNumerado(Numerado numerado) {
 		this.numerado = numerado;
 	}
 

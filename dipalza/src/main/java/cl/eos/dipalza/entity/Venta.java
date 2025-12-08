@@ -188,12 +188,12 @@ public class Venta {
 	}
 
 	public void addDetalle(VentaDetalle d) {
-        d.setVentaId(this.getId());
+        d.setVenta(this);
         detalles.add(d);
     }
 	
 	public void updateDetalle(VentaDetalle d) {
-        d.setVentaId(this.getId());
+        d.setVenta(this);
 	}
 	
 	public void removeDetalle(VentaDetalle d) {
