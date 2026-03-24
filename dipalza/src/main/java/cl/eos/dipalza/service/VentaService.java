@@ -1,31 +1,7 @@
 
 package cl.eos.dipalza.service;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-
-import cl.eos.dipalza.entity.Cliente;
-import cl.eos.dipalza.entity.CondicionVenta;
-import cl.eos.dipalza.entity.EstadoVenta;
-import cl.eos.dipalza.entity.Numerado;
-import cl.eos.dipalza.entity.Producto;
-import cl.eos.dipalza.entity.Ruta;
-import cl.eos.dipalza.entity.Vendedor;
-import cl.eos.dipalza.entity.Venta;
-import cl.eos.dipalza.entity.VentaDetalle;
-import cl.eos.dipalza.entity.VentaDetallePieza;
+import cl.eos.dipalza.entity.*;
 import cl.eos.dipalza.entity.ids.ClienteId;
 import cl.eos.dipalza.entity.ids.VendedorId;
 import cl.eos.dipalza.exceptions.MissingDataException;
@@ -34,21 +10,23 @@ import cl.eos.dipalza.model.ClienteIdQueryDTO;
 import cl.eos.dipalza.model.venta.VentaDTO;
 import cl.eos.dipalza.model.venta.VentaDetalleDTO;
 import cl.eos.dipalza.model.venta.VentaDetallePiezaDTO;
-import cl.eos.dipalza.repository.ClienteRepository;
-import cl.eos.dipalza.repository.CondicionVentaRepository;
-import cl.eos.dipalza.repository.NumeradoRepository;
-import cl.eos.dipalza.repository.ProductoRepository;
-import cl.eos.dipalza.repository.RutaRepository;
-import cl.eos.dipalza.repository.VendedorRepository;
-import cl.eos.dipalza.repository.VentaDetallePiezaRepository;
-import cl.eos.dipalza.repository.VentaDetalleRepository;
-import cl.eos.dipalza.repository.VentaRepository;
+import cl.eos.dipalza.repository.*;
 import cl.eos.dipalza.specifications.VentaFilter;
 import cl.eos.dipalza.specifications.VentaSpecifications;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.PersistenceContext;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -88,6 +66,98 @@ public class VentaService {
 		this.vendedorRepository = vendedorRepository;
 		this.productoRepository = productoRepository;
 	}
+
+
+
+	public VentaDTO crearVentaEncabezado(VentaDTO dto) {
+
+		if (dto.getCodigoCliente() == null)
+			throw new MissingDataException("Falta el código de cliente!");
+		if (dto.getRutCliente() == null || dto.getRutCliente().isBlank())
+			throw new MissingDataException("Falta el rut del cliente!");
+
+		if (dto.getCodigoVendedor() == null || dto.getCodigoVendedor().isBlank())
+			throw new MissingDataException("Falta el código de vendedor!");
+
+		if (dto.getTipoVendedor() == null || dto.getTipoVendedor().isBlank())
+			throw new MissingDataException("Falta el tipo de vendedor!");
+
+		if (dto.getCodigoRuta() == null || dto.getCodigoRuta().isBlank())
+			throw new MissingDataException("Falta el código de ruta!");
+
+		if (dto.getCodigoCondicionVenta() == null || dto.getCodigoCondicionVenta().isBlank())
+			throw new MissingDataException("Falta la condición de venta!");
+
+		Optional<Cliente> cliente = this.clienteRepository
+				.findById(new ClienteId(dto.getRutCliente(), dto.getCodigoCliente()));
+		if (cliente.isEmpty())
+			throw new EntityNotFoundException("El cliente especificado no existe!!");
+
+		Optional<Vendedor> vendedor = this.vendedorRepository
+				.findById(new VendedorId(dto.getCodigoVendedor(), dto.getTipoVendedor()));
+		if (vendedor.isEmpty())
+			throw new EntityNotFoundException("El vendedor especificado no existe!!");
+
+		Optional<Ruta> ruta = this.rutaRepository.findById(dto.getCodigoRuta());
+		if (ruta.isEmpty())
+			throw new EntityNotFoundException("La ruta especificada no existe!!");
+
+		Optional<CondicionVenta> condicionVenta = this.condicionVentaRepository.findById(dto.getCodigoCondicionVenta());
+		if (condicionVenta.isEmpty())
+			throw new EntityNotFoundException("La condición de venta especificada no existe!!");
+
+		// Usando el mapper para convertir DTO a entidad
+		Venta venta = VentaMapper.toVentaEntity(dto, cliente.get(), vendedor.get(), ruta.get(), condicionVenta.get());
+
+		// Guardar la venta en la base de datos (esto asigna un id a la venta)
+		venta = ventaRepository.save(venta);
+
+		// Retornar el DTO de respuesta
+		return VentaMapper.toVentaDTO(venta);
+	}
+
+
+	public VentaDTO actualizarVentaEncabezado(Long id, VentaDTO dto) {
+		Objects.requireNonNull(dto, "dto no puede ser null");
+		Objects.requireNonNull(id, "id no puede ser null");
+
+		Venta venta = ventaRepository.findById(id)
+				.orElseThrow(() -> new EntityNotFoundException("Venta no encontrada: " + id));
+
+		// Cabecera
+		if(dto.getFecha() != null)
+			venta.setFecha(dto.getFecha());
+
+		if(dto.getRutCliente() != null && dto.getCodigoCliente() != null) {
+			ClienteId clienteId = new ClienteId(dto.getRutCliente(), dto.getCodigoCliente());
+			Cliente cliente = em.getReference(Cliente.class, clienteId);
+			venta.setCliente(cliente);
+		}
+		if(dto.getCodigoVendedor() != null && dto.getTipoVendedor() != null) {
+			VendedorId vendedorId = new VendedorId(dto.getCodigoVendedor(), dto.getTipoVendedor());
+			Vendedor vendedor = em.getReference(Vendedor.class, vendedorId);
+			venta.setVendedor(vendedor);
+		}
+		if(dto.getCodigoRuta() != null) {
+			Ruta ruta = em.getReference(Ruta.class, dto.getCodigoRuta());
+			venta.setRuta(ruta);
+		}
+
+		if(dto.getCodigoCondicionVenta() != null) {
+			CondicionVenta condicionVenta = em.getReference(CondicionVenta.class, dto.getCodigoCondicionVenta());
+			venta.setCondicionVenta(condicionVenta);
+		}
+		if(dto.getEstadoVenta() != null) {
+			venta.setEstado(EstadoVenta.fromName(dto.getEstadoVenta()));
+		}
+
+		venta = ventaRepository.save(venta);
+
+		VentaDTO ventaDTO = VentaMapper.toVentaDTO(venta);
+		return ventaDTO;
+	}
+
+
 
 	public VentaDTO crearVenta(VentaDTO dto) {
 
@@ -132,32 +202,6 @@ public class VentaService {
 		// Guardar la venta en la base de datos (esto asigna un id a la venta)
 		venta = ventaRepository.save(venta);
 
-		// En la creación, puede venir sin los registros de venta.
-		if (dto.getDetalles() != null && !dto.getDetalles().isEmpty()) {
-
-			// Luego, los detalles de la venta se guardan con el id generado
-			for (VentaDetalle detalle : venta.getDetalles()) {
-				detalle.setVenta(venta); // Establecemos la relación de la venta con cada detalle
-			}
-
-			// Guardar los detalles en la base de datos (debe estar relacionado con la
-			// venta)
-			for (VentaDetalle detalle : venta.getDetalles()) {
-				// Guardar cada detalle de venta
-				ventaDetalleRepository.save(detalle);
-
-				// Guardar las piezas asociadas a ese detalle
-				if (detalle.getPiezasUsadas() != null) {
-					for (VentaDetallePieza pieza : detalle.getPiezasUsadas()) {
-						pieza.setVentaDetalle(detalle); // Asignar la relación entre pieza y detalle
-
-						ventaDetallePiezaRepository.save(pieza); // Guardar la pieza
-
-					}
-				}
-			}
-		}
-
 		// Retornar el DTO de respuesta
 		return VentaMapper.toVentaDTO(venta);
 	}
@@ -187,7 +231,7 @@ public class VentaService {
 			Ruta ruta = em.getReference(Ruta.class, dto.getCodigoRuta());
 			venta.setRuta(ruta);
 		}
-		
+
 		if(dto.getCodigoCondicionVenta() != null)
 		{
 			CondicionVenta condicionVenta = em.getReference(CondicionVenta.class, dto.getCodigoCondicionVenta());
@@ -195,7 +239,7 @@ public class VentaService {
 		}
 		if(dto.getEstadoVenta() != null)
 		{
-			venta.setEstado(EstadoVenta.estadoVentaFromName(dto.getEstadoVenta()));
+			venta.setEstado(EstadoVenta.fromName(dto.getEstadoVenta()));
 		}
 
 		syncDetalles(venta, dto.getDetalles());
@@ -309,7 +353,7 @@ public class VentaService {
 	public List<VentaDTO> obtenerVentasPorVendedorYFecha(String vendedorCodigo, LocalDate fecha) {
 		List<Venta> ventas = ventaRepository.findVentasByVendedorAndFecha(vendedorCodigo, fecha);
 
-		return ventas.stream().map(v -> VentaMapper.toVentaDTO(v)).toList();
+		return ventas.stream().map(VentaMapper::toVentaDTO).toList();
 	}
 
 	// Obtener la última venta de un cliente
@@ -475,8 +519,8 @@ public class VentaService {
 		ventaRepository.save(venta);
 		return venta;
 	}
-	
-	
+
+
 	/**
      * Obtiene el listado de ventas aplicando filtros dinámicos.
      * @param filter DTO con los criterios de búsqueda (estados, rutas, clientes, etc.)
@@ -486,10 +530,56 @@ public class VentaService {
     public List<Venta> listarVentas(VentaFilter filter) {
         // 1. Construimos la especificación dinámica basada en el filtro recibido
         Specification<Venta> specification = VentaSpecifications.toSpecification(filter);
-        
+
         // 2. Ejecutamos la consulta. Gracias al EntityGraph en el repositorio,
         // JPA hará los JOINs necesarios para evitar el problema N+1.
         return ventaRepository.findAll(specification);
     }
+
+	public List<Venta> obtenerVentasCompletas(Specification<Venta> spec) {
+		// 1. Traemos las ventas y detalles (esto puebla el contexto de persistencia)
+		List<Venta> ventas = ventaRepository.findAll(spec);
+
+		if (!ventas.isEmpty()) {
+			List<Long> ventaIds = ventas.stream().map(Venta::getId).toList();
+			// 2. Forzamos la carga de piezas para esos detalles en una sola consulta separada
+			// Esto evita el producto cartesiano masivo y es extremadamente eficiente
+			ventaDetalleRepository.findDetallesWithPiezasByVentaIds(ventaIds);
+		}
+
+		return ventas;
+	}
+
+
+	///  Servicios optimizados
+
+	/**
+	 * Retorna una lista de ventas filtradas sin cargar detalles.
+	 */
+	@Transactional(readOnly = true)
+	public List<Venta> listarVentasOptimized(VentaFilter filter) {
+		Specification<Venta> spec = VentaSpecifications.toSpecification(filter);
+		return ventaRepository.findAllOptimized(spec);
+	}
+
+	/**
+	 * Retorna una sola venta por ID sin cargar detalles.
+	 */
+	@Transactional(readOnly = true)
+	public Venta obtenerVentaOptimized(Long id) {
+		return ventaRepository.findByIdOptimized(id)
+				.orElseThrow(() -> new EntityNotFoundException("Venta no encontrada con ID: " + id));
+	}
+
+	/**
+	 * Implementación del método solicitado para búsqueda por lotes de IDs.
+	 */
+	@Transactional(readOnly = true)
+	public List<Venta> findAllByIdInOptimized(List<Long> ids) {
+		if (ids == null || ids.isEmpty()) {
+			return List.of();
+		}
+		return ventaRepository.findAllByIdInOptimized(ids);
+	}
 
 }

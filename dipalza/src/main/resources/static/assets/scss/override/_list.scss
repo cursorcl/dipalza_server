@@ -1,0 +1,71 @@
+@use "../variable";
+
+.list-unstyled-border li {
+  border-bottom: 1px solid #e5e9f2;
+  padding-bottom: 15px;
+  margin-bottom: 10px;
+
+  .custom-checkbox {
+    margin-right: 15px;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+}
+
+.list-unstyled-noborder li:last-child {
+  border-bottom: none;
+}
+
+.list-group-item {
+  &.active {
+    background-color: variable.color(primary);
+  }
+
+  &.disabled {
+    color: variable.color_darken(light, 8%);
+  }
+}
+
+.list-group-item-primary {
+  background-color: variable.color(primary);
+  color: #fff;
+}
+
+.list-group-item-secondary {
+  background-color: variable.color(secondary);
+  color: #fff;
+}
+
+.list-group-item-success {
+  background-color: variable.color(success);
+  color: #fff;
+}
+
+.list-group-item-danger {
+  background-color: variable.color(danger);
+  color: #fff;
+}
+
+.list-group-item-warning {
+  background-color: variable.color(warning);
+  color: #fff;
+}
+
+.list-group-item-info {
+  background-color: variable.color(info);
+  color: #fff;
+}
+
+.list-group-item-light {
+  background-color: variable.color(light);
+  color: variable.color(dark);
+}
+
+.list-group-item-dark {
+  background-color: variable.color(dark);
+  color: #fff;
+}

@@ -21,7 +21,7 @@ public class VentaDetalleDTO implements Serializable {
 	private BigDecimal totalIla;
 	private BigDecimal totalLinea;
 	private String unidad;
-	private Integer piezas; // default 0
+	private BigDecimal piezas; // default 0
 	private List<VentaDetallePiezaDTO> piezasDetalle; // opcional
 
 	public VentaDetalleDTO() {
@@ -102,11 +102,11 @@ public class VentaDetalleDTO implements Serializable {
 		this.porcentajeIla = porcIla;
 	}
 
-	public Integer getPiezas() {
+	public BigDecimal getPiezas() {
 		return piezas;
 	}
 
-	public void setPiezas(Integer piezas) {
+	public void setPiezas(BigDecimal piezas) {
 		this.piezas = piezas;
 	}
 

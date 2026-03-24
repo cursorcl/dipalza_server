@@ -1,9 +1,13 @@
 spring:
+  sql:
+    init:
+      mode: never
   config:
     activate:
       on-profile: dev-nosec
   datasource:
-    url: jdbc:sqlserver://192.168.100.102:1433;databaseName=ventas;encrypt=true;trustServerCertificate=true
+    #url: jdbc:sqlserver://192.168.100.102:1433;databaseName=ventas;encrypt=true;trustServerCertificate=true
+    url: jdbc:sqlserver://cursorcl.dynalias.com:1433;databaseName=ventas;encrypt=true;trustServerCertificate=true
     username: sa
     password: _l2j1rs2
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
@@ -32,3 +36,10 @@ logging:
 app:
   cors:
     allowed-origins: "http://localhost:4200"
+
+facturacion:
+  datasource:
+    url: jdbc:sqlserver://192.168.100.102:1433;databaseName=Mastersoft;encrypt=true;trustServerCertificate=true
+    username: sa
+    password: _l2j1rs2
+    driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver

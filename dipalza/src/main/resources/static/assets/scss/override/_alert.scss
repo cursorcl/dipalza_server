@@ -1,0 +1,92 @@
+@use "../variable";
+
+.alert {
+  color: #fff;
+  border: none;
+  padding: 15px 20px;
+
+  .alert-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 5px;
+  }
+
+  code {
+    background-color: #fff;
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+
+  p {
+    margin-bottom: 0;
+  }
+
+  &.alert-has-icon {
+    display: flex;
+
+    .alert-icon {
+      margin-top: 4px;
+      width: 30px;
+
+      .ion,
+      .fas,
+      .far,
+      .fab,
+      .fal {
+        font-size: 20px;
+      }
+    }
+
+    .alert-body {
+      flex: 1;
+    }
+  }
+
+  &:not(.alert-light) a {
+    color: #fff;
+  }
+
+  &.alert-primary {
+    background-color: variable.color(primary);
+  }
+
+  &.alert-secondary {
+    background-color: variable.color(secondary);
+  }
+
+  &.alert-success {
+    background-color: variable.color(success);
+  }
+
+  &.alert-info {
+    background-color: variable.color(info);
+  }
+
+  &.alert-warning {
+    background-color: variable.color(warning);
+  }
+
+  &.alert-danger {
+    background-color: variable.color(danger);
+  }
+
+  &.alert-light {
+    background-color: variable.color(light);
+    color: variable.color(dark);
+  }
+
+  &.alert-dark {
+    background-color: variable.color(dark);
+  }
+}
+.alert-dismissible .close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  padding: 0.75rem 1.25rem;
+  color: inherit;
+  background: transparent;
+  border: none;
+  font-size: 25px;
+}

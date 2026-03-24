@@ -1,17 +1,15 @@
 package cl.eos.dipalza.service;
 
-
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import cl.eos.dipalza.entity.Producto;
 import cl.eos.dipalza.mapper.ProductoMapper;
 import cl.eos.dipalza.model.ProductoDTO;
 import cl.eos.dipalza.repository.ProductoRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductoService {
@@ -20,7 +18,7 @@ public class ProductoService {
     private ProductoRepository productoRepository;
     
     @Autowired
-    private ProductoMapper ProductoMapper;
+    private ProductoMapper productoMapper;
 
     /**
      * Obtiene la lista de productos sin la lista de numerados asociados.
@@ -29,7 +27,7 @@ public class ProductoService {
     public List<ProductoDTO> getAllProductos() {
         return productoRepository.obtenerTodoResumido()
                 .stream()
-                .map(ProductoMapper::toDTO)
+                .map(productoMapper::toDTO)
                 .collect(Collectors.toList());
     }
     
@@ -40,7 +38,7 @@ public class ProductoService {
     public List<ProductoDTO> getAllProductosWithNumbered() {
         return productoRepository.findAll()
                 .stream()
-                .map(ProductoMapper::toDTO)
+                .map(productoMapper::toDTO)
                 .collect(Collectors.toList());
     }
     
@@ -49,19 +47,19 @@ public class ProductoService {
     public List<ProductoDTO> getProductosByDescripcion(String descripcion) {
         return productoRepository.getProductosByDescripcion(descripcion)
                 .stream()
-                .map(ProductoMapper::toDTO)
+                .map(productoMapper::toDTO)
                 .collect(Collectors.toList());
     }
 
     public Optional<ProductoDTO> findProductoById(String articulo) {
         return productoRepository.findById(articulo)
-                .map(ProductoMapper::toDTO);
+                .map(productoMapper::toDTO);
     }
 
     public ProductoDTO createOrUpdateProducto(ProductoDTO ProductoDTO) {
-        Producto Producto = ProductoMapper.toEntity(ProductoDTO);
+        Producto Producto = productoMapper.toEntity(ProductoDTO);
         Producto savedProducto = productoRepository.save(Producto);
-        return ProductoMapper.toDTO(savedProducto);
+        return productoMapper.toDTO(savedProducto);
     }
 
     public boolean deleteProducto(String articulo) {

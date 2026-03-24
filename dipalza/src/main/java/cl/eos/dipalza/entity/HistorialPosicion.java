@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
-import org.locationtech.jts.geom.Point;
+
 import java.time.LocalDateTime;
 
 @Setter
@@ -18,14 +18,16 @@ public class HistorialPosicion {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(length = 3)
-    private String vendedorId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumns({
+            @JoinColumn(name = "vendedorId", referencedColumnName = "codigo"),
+            @JoinColumn(name = "vendedorCodigo", referencedColumnName = "tipo")
+    })
+    private Vendedor vendedor;
 
     private LocalDateTime fechaHora;
-
-    @Column(columnDefinition = "geography")
-    private Point posicion; // Representación de punto geográfico
-
+    private double  latitud;
+    private double  longitud;
 
 
 }

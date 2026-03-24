@@ -50,9 +50,13 @@ public class Producto {
 	@Column(name = "last_update", nullable = false)
 	private LocalDate lastUpdate;
 
+
+	@Column(name = "costo", nullable = false)
+	private BigDecimal costo;
+
 	// RowVersion (timestamp/rowversion). Usar para locking optimista.
 	@Version
-	@Column(name = "rv")
+	@Column(name = "rv", insertable = false, updatable = false)
 	private byte[] rv;
 
 	private Boolean numbered;
@@ -187,4 +191,11 @@ public class Producto {
 		this.piezasVentas = piezasVentas;
 	}
 
+	public BigDecimal getCosto() {
+		return costo;
+	}
+
+	public void setCosto(BigDecimal costo) {
+		this.costo = costo;
+	}
 }

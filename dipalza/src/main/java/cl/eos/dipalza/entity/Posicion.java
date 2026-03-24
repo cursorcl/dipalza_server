@@ -1,13 +1,10 @@
 package cl.eos.dipalza.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import cl.eos.dipalza.entity.ids.VendedorId;
+import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
-import org.locationtech.jts.geom.Point;
 
 import java.time.LocalDateTime;
 
@@ -17,10 +14,20 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "posicion", schema = "dbo")
 public class Posicion {
-    @Id
-    private String vendedorId;
+    @EmbeddedId
+    private VendedorId id;
 
-    private Point posicion;
+    @OneToOne(fetch = FetchType.LAZY)
+    @MapsId
+    @JoinColumns({
+            @JoinColumn(name = "vendedorId", referencedColumnName = "codigo"),
+            @JoinColumn(name = "vendedorCodigo", referencedColumnName = "tipo")
+    })
+    private Vendedor vendedor;
+
+    private double latitud;
+    private double longitud;
+
     @Column(name = "ultimaActualizacion")
     private LocalDateTime fechaHora;
 

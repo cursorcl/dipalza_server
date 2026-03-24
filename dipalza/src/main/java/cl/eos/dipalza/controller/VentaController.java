@@ -1,23 +1,5 @@
 package cl.eos.dipalza.controller;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Objects;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import cl.eos.dipalza.entity.EstadoVenta;
 import cl.eos.dipalza.entity.Numerado;
 import cl.eos.dipalza.entity.Venta;
@@ -31,6 +13,15 @@ import cl.eos.dipalza.repository.NumeradoRepository;
 import cl.eos.dipalza.service.VentaService;
 import cl.eos.dipalza.specifications.VentaFilter;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/api/ventas")
@@ -60,20 +51,33 @@ public class VentaController {
 	        condicionVentaIds, null, fechaInicio, fechaFin
 	    );
 	    List<Venta> ventas = ventaService.listarVentas(filter);
-	    List<VentaDTO> ventasDTO = ventas.stream().map(v -> VentaMapper.toVentaDTO(v)).toList();
+	    List<VentaDTO> ventasDTO = ventas.stream().map(VentaMapper::toVentaDTO).toList();
 	    return ResponseEntity.ok(ventasDTO);
 	}
 	
 	@PostMapping
 	public ResponseEntity<VentaDTO> grabarVenta(@RequestBody VentaDTO venta) {
 		VentaDTO response = null;
-		if (venta.getId() == null || venta.getId().longValue() == -1)
+		if (venta.getId() == null || venta.getId() == -1)
 			response = ventaService.crearVenta(venta);
 		else
 			response = ventaService.actualizarVenta(venta.getId(), venta);
 
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
+
+	@PostMapping("/encabezado")
+	public ResponseEntity<VentaDTO> grabarVentaEncabezado(@RequestBody VentaDTO venta) {
+		VentaDTO response = null;
+		if (venta.getId() == null || venta.getId() == -1)
+			response = ventaService.crearVentaEncabezado(venta);
+		else
+			response = ventaService.actualizarVentaEncabezado(venta.getId(), venta);
+
+		return new ResponseEntity<>(response, HttpStatus.OK);
+	}
+
+
 
 	// Eliminar una venta
 	@DeleteMapping("/{id}")
@@ -150,7 +154,7 @@ public class VentaController {
 		Objects.requireNonNull(estadoVenta.idVenta(), "El identificador de venta debe ser distinto de nulo.");
 		Objects.requireNonNull(estadoVenta.estadoVenta(), "El estado asociado a la venta debe ser distinto de nulo.");
 
-		EstadoVenta estado = EstadoVenta.estadoVentaFromName(estadoVenta.estadoVenta());
+		EstadoVenta estado = EstadoVenta.fromName(estadoVenta.estadoVenta());
 		if (estado == null)
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 
@@ -159,11 +163,48 @@ public class VentaController {
 		return new ResponseEntity<>(ventaDTO, HttpStatus.OK);
 	}
 	
-	
 	@GetMapping("/fecha")
 	public ResponseEntity<List<VentaDTO>> obtenerVentasPorFecha(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
 
 		List<VentaDTO> ventas = ventaService.obtenerVentasPorFecha(fecha);
 		return new ResponseEntity<>(ventas, HttpStatus.OK);
+	}
+
+	///  Optimizados
+	/**
+	 * Búsqueda optimizada: Retorna VentaDTO con detalles en null.
+	 */
+	@GetMapping("/optimized")
+	public ResponseEntity<List<VentaDTO>> listarVentasOptimized(@ModelAttribute VentaFilter filter) {
+		List<Venta> ventas = ventaService.listarVentasOptimized(filter);
+
+		// Mapeamos a DTO. El mapper debe estar configurado para
+		// no inicializar la colección de detalles si viene Lazy.
+		List<VentaDTO> dtos = ventas.stream()
+				.map(VentaMapper::toVentaDTO)
+				.toList();
+
+		return ResponseEntity.ok(dtos);
+	}
+
+	/**
+	 * Una sola venta optimizada.
+	 */
+	@GetMapping("/optimized/{id}")
+	public ResponseEntity<VentaDTO> obtenerVentaOptimized(@PathVariable Long id) {
+		Venta venta = ventaService.obtenerVentaOptimized(id);
+		return ResponseEntity.ok(VentaMapper.toVentaDTO(venta));
+	}
+
+	/**
+	 * Búsqueda por lotes de IDs optimizada.
+	 */
+	@PostMapping("/optimized/batch")
+	public ResponseEntity<List<VentaDTO>> buscarVentasBatchOptimized(@RequestBody List<Long> ids) {
+		List<Venta> ventas = ventaService.findAllByIdInOptimized(ids);
+		List<VentaDTO> dtos = ventas.stream()
+				.map(VentaMapper::toVentaDTO)
+				.toList();
+		return ResponseEntity.ok(dtos);
 	}
 }

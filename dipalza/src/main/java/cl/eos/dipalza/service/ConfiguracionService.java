@@ -1,27 +1,33 @@
 package cl.eos.dipalza.service;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import cl.eos.dipalza.entity.Configuracion;
 import cl.eos.dipalza.repository.ConfiguracionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
+import org.springframework.stereotype.Service;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ConfiguracionService {
 
-    @Autowired
-    private ConfiguracionRepository repo;
+    private final ConfiguracionRepository repo;
 
     private Map<String, String> cache = new ConcurrentHashMap<>();
 
+    public ConfiguracionService(ConfiguracionRepository repo) {
+        this.repo = repo;
+    }
+
     @PostConstruct
     public void cargarCache() {
-        repo.findAll().forEach(c -> cache.put(c.getPropiedad(), c.getValor()));
+        try {
+            repo.findAll().forEach(c -> cache.put(c.getPropiedad(), c.getValor()));
+        } catch (Exception e) {
+            // Tabla no existe aún o BD inaccesible — continúa sin cache
+            System.err.println("[ConfiguracionService] No se pudo cargar cache: " + e.getMessage());
+        }
     }
 
     public void recargarCache() {

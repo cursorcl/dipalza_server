@@ -32,6 +32,8 @@ public class ProductoDTO {
 	private BigDecimal stockVentas;
 	
 	private BigDecimal piezasVentas;
+
+	private BigDecimal costo;
 	
 	private List<NumeradoDTO> numerados = new ArrayList<>();
 
@@ -148,6 +150,11 @@ public class ProductoDTO {
 		this.piezasVentas = piezasVentas;
 	}
 
-	
-	
+	public BigDecimal getCosto() {
+		return costo;
+	}
+
+	public void setCosto(BigDecimal costo) {
+		this.costo = costo;
+	}
 }

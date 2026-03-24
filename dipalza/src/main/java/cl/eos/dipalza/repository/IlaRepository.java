@@ -1,13 +1,12 @@
 package cl.eos.dipalza.repository;
 
-import java.util.List;
-
+import cl.eos.dipalza.entity.Ila;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import cl.eos.dipalza.entity.Ila;
+import java.util.List;
 
 
 @Repository
@@ -21,4 +20,6 @@ public interface IlaRepository extends JpaRepository<Ila, String>{
 
     // Con paginación
     Page<Ila> findAllByOrderByDescripcionAsc(Pageable pageable);
+
+    Ila findIlaByValor(float valor);
 }

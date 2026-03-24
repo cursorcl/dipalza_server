@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,12 +34,17 @@ public class SecurityConfigDevSec {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-        .csrf(csrf -> csrf.disable()) // REST
+        .csrf(AbstractHttpConfigurer::disable) // REST
         .cors(cors -> cors.configure(http))
         .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/", "/index.html").permitAll()
+                .requestMatchers("/*.js", "/*.css", "/*.ico", "/*.json").permitAll()
+                .requestMatchers("/*.woff", "/*.woff2", "/*.ttf", "/*.eot", "/*.otf").permitAll()
+                .requestMatchers("/assets/**", "/media/**", "/chunk-**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/rutas", "/ping").permitAll()
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                .requestMatchers("/ws-posiciones/**").permitAll()
                 .requestMatchers("/auth/**").permitAll()
                 .anyRequest().authenticated()
         )

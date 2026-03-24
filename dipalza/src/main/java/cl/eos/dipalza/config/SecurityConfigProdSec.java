@@ -30,8 +30,13 @@ public class SecurityConfigProdSec {
             .cors(Customizer.withDefaults())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                    .requestMatchers("/", "/index.html").permitAll()
+                    .requestMatchers("/*.js", "/*.css", "/*.ico", "/*.json").permitAll()
+                    .requestMatchers("/*.woff", "/*.woff2", "/*.ttf", "/*.eot", "/*.otf").permitAll()
+                    .requestMatchers("/assets/**", "/media/**", "/chunk-**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/rutas", "/ping").permitAll()
                     .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                    .requestMatchers("/ws-posiciones/**").permitAll()
                     .requestMatchers("/auth/**").permitAll()
                     .anyRequest().authenticated()
             )

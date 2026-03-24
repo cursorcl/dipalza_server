@@ -56,12 +56,12 @@ public class VentaDetalle {
 	private BigDecimal totalLinea;
 
 	@Column(nullable = false)
-	private Integer piezas = 0;
+	private BigDecimal piezas = BigDecimal.ZERO;
 	
 	@Column(name = "unidad")
 	private String unidad;
 
-	@OneToMany(mappedBy = "ventaDetalle", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+	@OneToMany(mappedBy = "ventaDetalle", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
 	private List<VentaDetallePieza> piezasUsadas = new ArrayList<>();
 
 

@@ -4,7 +4,10 @@ spring:
   application:
     name: dipalza
   profiles:
-    active: dev-sec   # cambia aquí por defecto si quieres
+    active: dev-sec
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.sql.init.SqlInitializationAutoConfiguration
 
 server:
   port: 8080

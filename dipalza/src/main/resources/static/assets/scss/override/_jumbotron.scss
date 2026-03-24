@@ -1,0 +1,5 @@
+@use "../variable";
+
+.jumbotron {
+  background-color: variable.color(light);
+}

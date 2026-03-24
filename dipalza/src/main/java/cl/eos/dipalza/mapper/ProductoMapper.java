@@ -1,15 +1,14 @@
 package cl.eos.dipalza.mapper;
 
-import java.util.ArrayList;
-
-import org.springframework.stereotype.Component;
-
 import cl.eos.dipalza.entity.Numerado;
 import cl.eos.dipalza.entity.Producto;
 import cl.eos.dipalza.model.NumeradoDTO;
 import cl.eos.dipalza.model.ProductoDTO;
 import cl.eos.dipalza.model.proyecciones.ProductoResumido;
 import io.jsonwebtoken.lang.Collections;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
 
 @Component
 public class ProductoMapper {
@@ -27,6 +26,7 @@ public class ProductoMapper {
 	    dto.setUnidad(producto.getUnidad());
 	    dto.setStock(producto.getStock());
 	    dto.setCodigoila(producto.getCodigoila());
+		dto.setCosto(producto.getCosto());
 	    dto.setNumbered(producto.getNumbered());
 	    dto.setLastUpdate(producto.getLastUpdate());
 	    dto.setPieces(producto.getPieces());
@@ -56,7 +56,8 @@ public class ProductoMapper {
         dto.setNumerados(new ArrayList<>());
         dto.setPieces(resumen.getPieces());
 	    dto.setStockVentas(resumen.getStockVentas());
-	    dto.setPiezasVentas(resumen.getPiezasVentas());       
+	    dto.setPiezasVentas(resumen.getPiezasVentas());
+		dto.setCosto(resumen.getCosto());
         return dto;
     }
 
@@ -77,6 +78,7 @@ public class ProductoMapper {
 	    producto.setNumbered(dto.getNumbered());
 	    producto.setLastUpdate(dto.getLastUpdate());
 	    producto.setPieces(dto.getPieces());
+		producto.setCosto(dto.getCosto());
 	    producto.setNumerados(
 	    		dto.getNumerados() == null ? Collections.emptyList() : 
 	    		dto.getNumerados().stream().map(n -> toEntity(n, producto)).toList());

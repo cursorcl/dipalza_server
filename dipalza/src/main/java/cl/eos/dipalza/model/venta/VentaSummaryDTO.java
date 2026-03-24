@@ -3,12 +3,12 @@ package cl.eos.dipalza.model.venta;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.LocalDate;
 
 public class VentaSummaryDTO implements Serializable {
 	private static final long serialVersionUID = 1L;
 	private Long id;
-	private OffsetDateTime fecha;
+	private LocalDate fecha;
 	private String rutCliente;
 	private String vendedorCodigo;
 	private Integer numeroLineas;
@@ -26,11 +26,11 @@ public class VentaSummaryDTO implements Serializable {
 		this.id = id;
 	}
 
-	public OffsetDateTime getFecha() {
+	public LocalDate getFecha() {
 		return fecha;
 	}
 
-	public void setFecha(OffsetDateTime fecha) {
+	public void setFecha(LocalDate fecha) {
 		this.fecha = fecha;
 	}
 

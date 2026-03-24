@@ -1,0 +1,133 @@
+/*
+ *  Document   : style.css
+ *  Author     : RedStar Template
+ *  Description: This is a main style scss file for import all scss files.
+ *
+ *  Structure (with shortcodes):
+                 [1. External Import ]
+                 [2. Fonts ]       
+                 [3. Common ]
+                 [4. Components ]       
+                 [5. Override Classes]                   
+                 [6. Layout ]    
+                 [7. Theme ]   
+                 [8. RTL ]      
+                
+/*                 [1. External Import ]                   			*/
+/* Importing Bootstrap SCSS file. */
+// @import "../../../node_modules/angular-archwizard/archwizard.css";
+
+/*                 [2. Fonts]                   				*/
+// @import "fonts/_material.scss";
+@use "fonts/fontawesome/fontawesome.scss";
+@use "fonts/fontawesome/regular.scss";
+@use "fonts/fontawesome/solid.scss";
+@use "fonts/fontawesome/brands.scss";
+
+/*                 [3. Common ]                   			*/
+/* Variable */
+@use "_variable";
+/* Mixin */
+@use "_mixin";
+/* Helper classes */
+@use "_helpers";
+/* Custom Style */
+@use "_custom";
+
+/*                 [4. Components ]                   			*/
+@use "_components";
+
+/*                 [5. Override Classes ]                       */
+/* 5.1 Accordion */
+@use "override/_accordion";
+/* 5.2 Alert */
+@use "override/_alert";
+/* 5.3 Badge */
+@use "override/_badge";
+/* 5.4 Breadcrumb */
+@use "override/_breadcrumb";
+/* 5.5 Button */
+@use "override/_button";
+/* 5.6 Card */
+@use "override/_card";
+/* 5.7 Carousel */
+@use "override/_carousel";
+/* 5.8 Dropdown */
+@use "override/_dropdown";
+/* 5.9 Form */
+@use "override/_form";
+/* 5.10 Grid */
+@use "override/_grid";
+/* 5.11 Icons */
+@use "override/_icons";
+/* 5.12 Jumbotron */
+@use "override/_jumbotron";
+/* 5.13 List */
+@use "override/_list";
+/* 5.14 Media */
+@use "override/_media";
+/* 5.15 Misc */
+@use "override/_misc";
+/* 5.16 Modal */
+@use "override/_modal";
+/* 5.17 Nav */
+@use "override/_nav";
+/* 5.18 Navbar */
+@use "override/_navbar";
+/* 5.19 Pagination */
+@use "override/_pagination";
+/* 5.20 Popover */
+@use "override/_popover";
+/* 5.21 Progress Bar */
+@use "override/_progressbar";
+/* 5.22 Rating */
+@use "override/_rating";
+/* 5.23 Dropdown */
+@use "override/_tab";
+/* 5.24 Table */
+@use "override/_table";
+/* 5.25 Tooltip */
+@use "override/_tooltip";
+/* 5.26 Timeline */
+@use "override/_timeline";
+/* 5.26 Scrollbar */
+@use "override/_scrollbar";
+
+/*                 [6. Layout ]                       */
+/* 6.1 Misc */
+@use "layouts/misc" as misc2;
+/* 6.2 Section */
+@use "layouts/section";
+/* 6.3 Page */
+@use "layouts/page";
+/* 6.4 Layout */
+@use "layouts/layout";
+/* 6.5 Animation */
+@use "layouts/animation";
+/* 6.6 Sidebar */
+@use "layouts/sidebar";
+
+/*                 [7. Theme ]                       */
+/* 7.1 Dark Sidebar */
+@use "skins/_darksidebar";
+/* 7.2 Light Sidebar */
+@use "skins/_lightsidebar";
+/* 7.3 Purple Theme */
+@use "skins/purple";
+/* 7.4 Cyan Theme */
+@use "skins/cyan";
+/* 7.5 Green Theme */
+@use "skins/green";
+/* 7.6 Red Theme */
+@use "skins/red";
+/* 7.7 Orange Theme */
+@use "skins/orange";
+/* 7.8 White Theme */
+@use "skins/white";
+/* 7.9 Black Theme */
+@use "skins/black";
+/* 7.10 Dark Template */
+@use "skins/dark";
+
+/*                 [8. RTL ]                       */
+// @import "rtl/rtl"; // Remove comment for RTL template

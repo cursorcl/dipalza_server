@@ -22,4 +22,5 @@ public interface ProductoResumido {
     BigDecimal getStockVentas();
     BigDecimal getPiezasVentas();
     LocalDate getLastUpdate();
+    BigDecimal getCosto();
 }

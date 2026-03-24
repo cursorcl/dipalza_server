@@ -1,0 +1,40 @@
+{
+  "routes": [
+
+    {
+      "path": "/mapa",
+      "title": "MENUITEMS.HOME.TEXT",
+      "iconType": "feather",
+      "icon": "map",
+      "class": "",
+      "groupTitle": false,
+      "badge": "",
+      "badgeClass": "",
+      "submenu": []
+    },
+    {
+      "path": "",
+      "title": "Ventas",
+      "iconType": "",
+      "icon": "",
+      "class": "",
+      "groupTitle": true,
+      "badge": "",
+      "badgeClass": "",
+      "submenu": []
+    },
+
+        {
+          "path": "ventas",
+          "title": "Ventas por Facturar",
+          "iconType": "",
+          "icon": "",
+          "class": "",
+          "groupTitle": false,
+          "badge": "",
+          "badgeClass": "",
+          "submenu": []
+        }
+ 
+  ]
+}

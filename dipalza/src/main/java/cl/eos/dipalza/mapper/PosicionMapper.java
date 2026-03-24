@@ -4,10 +4,6 @@ import cl.eos.dipalza.entity.HistorialPosicion;
 import cl.eos.dipalza.entity.Posicion;
 import cl.eos.dipalza.model.HistorialPosicionDTO;
 import cl.eos.dipalza.model.PosicionDTO;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.PrecisionModel;
 
 /**
  * Clase utilitaria que permite realizar la conversión en ambos sentidos de:
@@ -18,30 +14,29 @@ import org.locationtech.jts.geom.PrecisionModel;
  */
 public class PosicionMapper {
 
-    private static final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
-
     public static HistorialPosicionDTO toHistorialDTO(HistorialPosicion posicion) {
+
+        if(posicion == null || posicion.getVendedor() == null) {
+            return null;
+        }
         return new HistorialPosicionDTO(
-                posicion.getId(), posicion.getVendedorId(), posicion.getFechaHora(), posicion.getPosicion().getY(), posicion.getPosicion().getX());
+                posicion.getId(), posicion.getVendedor().getId().getCodigo(), posicion.getVendedor().getId().getTipo(), posicion.getVendedor().getNombre(), posicion.getFechaHora(), posicion.getLatitud(), posicion.getLongitud());
     }
-    public static HistorialPosicion toHistorial(HistorialPosicionDTO dto) {
-        var historialPosicion = new HistorialPosicion();
-        historialPosicion.setVendedorId(dto.vendedorId());
-        historialPosicion.setFechaHora(dto.fechaHora());
-        Point point = geometryFactory.createPoint(new Coordinate(dto.longitude(), dto.latitude()));
-        historialPosicion.setPosicion(point);
-        return historialPosicion;
-    }
+
     public static PosicionDTO toPosicionDTO(Posicion posicion) {
+
+        // Acceso seguro: Posicion -> Vendedor -> Nombre
+        String nombre = (posicion.getVendedor() != null)
+                ? posicion.getVendedor().getNombre()
+                : "Desconocido";
+
         return new PosicionDTO(
-                posicion.getVendedorId(), posicion.getFechaHora(), posicion.getPosicion().getY(), posicion.getPosicion().getX());
+                posicion.getId().getCodigo(),
+                posicion.getId().getTipo(),
+                nombre,
+                posicion.getFechaHora(),
+                posicion.getLatitud(),
+                posicion.getLongitud());
     }
-    public static Posicion toPosicion(PosicionDTO dto) {
-        var posicion = new Posicion();
-        posicion.setVendedorId(dto.vendedorId());
-        posicion.setFechaHora(dto.fechaHora());
-        Point point = geometryFactory.createPoint(new Coordinate(dto.longitude(), dto.latitude()));
-        posicion.setPosicion(point);
-        return posicion;
-    }
+
 }

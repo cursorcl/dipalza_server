@@ -1,9 +1,9 @@
 package cl.eos.dipalza.controller;
 
-import cl.eos.dipalza.entity.Posicion;
-import cl.eos.dipalza.mapper.PosicionMapper;
+import cl.eos.dipalza.model.HistorialPosicionDTO;
 import cl.eos.dipalza.model.PosicionDTO;
 import cl.eos.dipalza.service.PosicionService;
+import cl.eos.dipalza.specifications.PosicionFilter;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,14 +21,18 @@ public class PosicionController {
 
     @GetMapping
     public ResponseEntity<List<PosicionDTO>> obtenerPosiciones() {
-        List<Posicion> posiciones = posicionService.obtenerPosiciones();
-        var posicionesDTO = posiciones.stream().map(PosicionMapper::toPosicionDTO).toList();
-        return ResponseEntity.ok(posicionesDTO);
+        // El servicio decidirá si consulta Posicion o HistorialPosicion
+        List<PosicionDTO> resultados = posicionService.obtenerActuales();
+        return ResponseEntity.ok(resultados);
     }
 
-    public ResponseEntity<PosicionDTO> obtenerPosicionPorVendedor(String vendedorId) {
-        Posicion posicion = posicionService.obtenerPosicionPorVendedor(vendedorId);
-        return ResponseEntity.ok(PosicionMapper.toPosicionDTO(posicion));
+    @PostMapping("/historico") // Cambiar a POST para soportar el cuerpo del filtro
+    public ResponseEntity<List<HistorialPosicionDTO>> obtenerHistorico(
+            @RequestBody PosicionFilter filter) { // @RequestBody es indispensable aquí
+
+        // Llamada al servicio, delegando la lógica de negocio
+        List<HistorialPosicionDTO> dtos = posicionService.buscarHistorico(filter);
+        return ResponseEntity.ok(dtos);
     }
 
     @PostMapping

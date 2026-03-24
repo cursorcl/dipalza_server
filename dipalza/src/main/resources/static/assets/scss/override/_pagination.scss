@@ -1,0 +1,39 @@
+@use "../mixin";
+@use "../variable";
+
+.page-item {
+  .page-link {
+    color: variable.color(primary);
+    border-radius: 3px;
+    margin: 0 3px;
+    @include mixin.box-shadow(2px, 2px, 2px, rgba(0, 0, 0, 0.2));
+  }
+
+  &.active .page-link {
+    background-color: variable.color(primary);
+    border-color: variable.color(primary);
+  }
+
+  &.disabled .page-link {
+    border-color: transparent;
+    background-color: variable.color_lighten(primary, 31.7%);
+    color: variable.color(primary);
+    opacity: 0.6;
+  }
+}
+
+.page-link {
+  border-color: transparent;
+  background-color: variable.color_lighten(primary, 31.7%);
+  font-weight: 600;
+
+  &:hover {
+    background-color: variable.color(primary);
+    color: #fff;
+    border-color: transparent;
+  }
+
+  &:focus {
+    box-shadow: none;
+  }
+}

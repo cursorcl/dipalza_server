@@ -1,9 +1,7 @@
 // file: cl/eos/dipalza/repository/VentaRepository.java
 package cl.eos.dipalza.repository;
 
-import java.time.LocalDate;
-import java.util.List;
-
+import cl.eos.dipalza.entity.Venta;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -16,10 +14,13 @@ import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Repository;
 
-import cl.eos.dipalza.entity.Venta; // <-- ajuste este import si su entity está en otro paquete
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecificationExecutor<Venta> {
+
 
 
     /**
@@ -43,7 +44,8 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     
     @Query("SELECT v FROM Venta v WHERE v.vendedor.id.codigo = :vendedorCodigo AND CAST(v.fecha AS date) = :fecha")
     List<Venta> findVentasByVendedorAndFecha(@Param("vendedorCodigo") String vendedorCodigo, @Param("fecha") LocalDate fecha);
-    
+
+	///  obtiene las ventas sin detalle
     @Query("""
     	       SELECT v FROM Venta v
     	       WHERE v.cliente.id.rut = :rutCliente
@@ -54,13 +56,15 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     	        @Param("rutCliente") String rutCliente,
     	        @Param("codigoCliente") String codigoCliente,
     	        Pageable pageable);
-    
+
+	///  obtiene las ventas sin detalle
     @Query("""
- 	       SELECT v FROM Venta v
- 	       WHERE v.cliente.id.rut = :rutCliente
- 	         AND v.cliente.id.codigo = :codigoCliente
- 	         AND v.estado = 'CERRADA'
- 	       ORDER BY v.fecha DESC
+			SELECT v FROM Venta v
+		 	LEFT JOIN FETCH v.detalles
+		    WHERE v.cliente.id.rut = :rutCliente
+			 AND v.cliente.id.codigo = :codigoCliente
+			 AND v.estado = 'CLOSED'
+		    ORDER BY v.fecha DESC
  	       """)
  	List<Venta> findVentasCerradasByClienteOrderByFechaDesc(
  	        @Param("rutCliente") String rutCliente,
@@ -70,7 +74,7 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     @Query("SELECT v FROM Venta v JOIN FETCH v.detalles vd WHERE v.id = :ventaId")
     Venta findVentaWithDetalles(@Param("ventaId") Long ventaId);
 
- // ventas de un día por vendedor (rango [inicio, fin))
+ 	/// ventas de un día por vendedor (rango [inicio, fin))
     @EntityGraph(value = "Venta.header", type = EntityGraph.EntityGraphType.LOAD)
     @Query("""
        select v
@@ -86,15 +90,42 @@ public interface VentaRepository extends JpaRepository<Venta, Long>, JpaSpecific
     
     @Override
     @EntityGraph(attributePaths = {
-            "cliente", 
-            "vendedor", 
-            "condicionVenta", 
-            "ruta", 
-            "ruta.conduccion",
-            "detalles",           // Carga la lista de detalles
-            "detalles.producto"   // Carga el producto dentro de cada detalle (Elimina el Proxy)
+			"cliente",
+			"vendedor",
+			"condicionVenta",
+			"ruta",
+			"ruta.conduccion",
+			"detalles",
+			"detalles.producto"
         })
 	@NonNull
     List<Venta> findAll(@Nullable Specification<Venta> spec);
+
+	// Consulta optimizada para una sola venta con toda su jerarquía
+	@EntityGraph(attributePaths = {"detalles", "detalles.producto", "detalles.piezasUsadas"})
+	@Query("SELECT v FROM Venta v WHERE v.id = :id")
+	Optional<Venta> findFullVentaById(@Param("id") Long id);
+
+
+
+	///  Optimización de consultas
+
+	// 1. Búsqueda dinámica de múltiples ventas (Solo Cabeceras)
+	@EntityGraph(attributePaths = {"cliente", "vendedor", "condicionVenta", "ruta", "ruta.conduccion"})
+	@Query("SELECT v FROM Venta v")
+	List<Venta> findAllOptimized(@Nullable Specification<Venta> spec);
+
+	// 2. Búsqueda de una venta específica por ID (Solo Cabecera)
+	@EntityGraph(attributePaths = {"cliente", "vendedor", "condicionVenta", "ruta"})
+	@Query("SELECT v FROM Venta v WHERE v.id = :id")
+	Optional<Venta> findByIdOptimized(@Param("id") Long id);
+
+	// 3. Búsqueda por lista de IDs (Solo Cabecera)
+	@EntityGraph(attributePaths = {"cliente", "vendedor", "condicionVenta", "ruta"})
+	@Query("SELECT v FROM Venta v WHERE v.id IN :ids")
+	List<Venta> findAllByIdInOptimized(@Param("ids") List<Long> ids);
+
+
+
 
 }

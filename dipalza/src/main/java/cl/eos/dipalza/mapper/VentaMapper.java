@@ -1,24 +1,16 @@
 package cl.eos.dipalza.mapper;
 
+import cl.eos.dipalza.entity.*;
+import cl.eos.dipalza.model.venta.VentaDTO;
+import cl.eos.dipalza.model.venta.VentaDetalleDTO;
+import cl.eos.dipalza.model.venta.VentaDetallePiezaDTO;
+import org.hibernate.Hibernate;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import cl.eos.dipalza.entity.Cliente;
-import cl.eos.dipalza.entity.CondicionVenta;
-import cl.eos.dipalza.entity.EstadoVenta;
-import cl.eos.dipalza.entity.Numerado;
-import cl.eos.dipalza.entity.Producto;
-import cl.eos.dipalza.entity.Ruta;
-import cl.eos.dipalza.entity.Vendedor;
-import cl.eos.dipalza.entity.Venta;
-import cl.eos.dipalza.entity.VentaDetalle;
-import cl.eos.dipalza.entity.VentaDetallePieza;
-import cl.eos.dipalza.model.venta.VentaDTO;
-import cl.eos.dipalza.model.venta.VentaDetalleDTO;
-import cl.eos.dipalza.model.venta.VentaDetallePiezaDTO;
 
 public class VentaMapper {
 
@@ -27,20 +19,28 @@ public class VentaMapper {
 		dto.setId(venta.getId());
 		dto.setFecha(venta.getFecha());
 
-		dto.setRutCliente(venta.getCliente().getId().getRut());
-		dto.setCodigoCliente(venta.getCliente().getId().getCodigo());
-		dto.setNombreCliente(venta.getCliente().getRazon());
+		if(venta.getCliente() != null) {
+			dto.setRutCliente(venta.getCliente().getId().getRut());
+			dto.setCodigoCliente(venta.getCliente().getId().getCodigo());
+			dto.setNombreCliente(venta.getCliente().getRazon());
+		}
 
-		dto.setCodigoVendedor(venta.getVendedor().getId().getCodigo());
-		dto.setTipoVendedor(venta.getVendedor().getId().getTipo());
-		dto.setNombreVendedor(venta.getVendedor().getNombre());
+		if(venta.getVendedor() != null) {
+			dto.setCodigoVendedor(venta.getVendedor().getId().getCodigo());
+			dto.setTipoVendedor(venta.getVendedor().getId().getTipo());
+			dto.setNombreVendedor(venta.getVendedor().getNombre());
+		}
 
-		dto.setCodigoRuta(venta.getRuta().getCodigo());
-		dto.setNombreRuta(venta.getRuta().getDescripcion());
+		if(venta.getRuta() != null) {
+			dto.setCodigoRuta(venta.getRuta().getCodigo());
+			dto.setNombreRuta(venta.getRuta().getDescripcion());
+		}
 
-		dto.setCodigoCondicionVenta(venta.getCondicionVenta().getCodigo());
-		dto.setNombreCondicionVenta(venta.getCondicionVenta().getDescripcion());
-		dto.setEstadoVenta(venta.getEstado().name());
+		if(venta.getCondicionVenta() != null) {
+			dto.setCodigoCondicionVenta(venta.getCondicionVenta().getCodigo());
+			dto.setNombreCondicionVenta(venta.getCondicionVenta().getDescripcion());
+			dto.setEstadoVenta(venta.getEstado().name());
+		}
 
 		// Totales (asumiendo getters en entity)
 		dto.setTotalDescuento(nvl(venta.getTotalDescuento()));
@@ -50,13 +50,11 @@ public class VentaMapper {
 		dto.setTotal(nvl(venta.getTotal()));
 
 		// Detalles
-		if (venta.getDetalles() != null) {
+		if (Hibernate.isInitialized(venta.getDetalles()) && venta.getDetalles() != null) {
 			List<VentaDetalleDTO> dets = venta.getDetalles().stream()
 					.sorted(Comparator.comparingLong(VentaDetalle::getId)).map(VentaMapper::toVentaDetalleDTO)
 					.collect(Collectors.toList());
 			dto.setDetalles(dets);
-		} else {
-			dto.setDetalles(List.of());
 		}
 		return dto;
 	}
@@ -81,7 +79,7 @@ public class VentaMapper {
 		dto.setUnidad(d.getUnidad());
 		dto.setPiezas(d.getPiezas());
 		// Mapear las piezas numeradas asociadas a este detalle
-		if (d.getPiezasUsadas() != null && !d.getPiezasUsadas().isEmpty()) {
+		if (Hibernate.isInitialized(d.getPiezasUsadas()) && d.getPiezasUsadas() != null && !d.getPiezasUsadas().isEmpty()) {
 			List<VentaDetallePiezaDTO> piezasDto = d.getPiezasUsadas().stream().map(VentaMapper::toVentaDetaalleiezaDTO) // Mapeamos
 																															// cada
 																															// pieza
@@ -121,7 +119,7 @@ public class VentaMapper {
 		venta.setVendedor(vendedor);
 		venta.setRuta(ruta);
 		venta.setCondicionVenta(condicionVenta);
-		venta.setEstado(EstadoVenta.estadoVentaFromName(dto.getEstadoVenta()));
+		venta.setEstado(EstadoVenta.fromName(dto.getEstadoVenta()));
 		venta.setTotalNeto(BigDecimal.ZERO);
 		venta.setTotal(BigDecimal.ZERO);
 		venta.setTotalDescuento(BigDecimal.ZERO);

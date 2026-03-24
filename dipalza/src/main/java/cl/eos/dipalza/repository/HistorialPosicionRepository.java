@@ -1,33 +1,15 @@
 package cl.eos.dipalza.repository;
 
 import cl.eos.dipalza.entity.HistorialPosicion;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-import java.time.LocalDateTime;
+import java.util.List;
 
-public interface HistorialPosicionRepository extends JpaRepository<HistorialPosicion, String> {
+public interface HistorialPosicionRepository extends JpaRepository<HistorialPosicion, String>, JpaSpecificationExecutor<HistorialPosicion> {
 
-    /// Query para obtener el historial paginado de un movil específico
-    Page<HistorialPosicion> findByVendedorIdOrderByFechaHoraDesc(String vendedorId, Pageable pageable);
-
-
-    /// Query para obtener el historial paginado de todos los moviles
-    Page<HistorialPosicion> findByOrderByFechaHoraDesc( Pageable pageable);
-
-    /// Query paginada filtrando por un rango de fechas para un vendedorId (útil para el histórico de 2-3 meses)
-    Page<HistorialPosicion> findByVendedorIdAndFechaHoraBetween(
-            String vendedorId,
-            LocalDateTime inicio,
-            LocalDateTime fin,
-            Pageable pageable
-    );
-
-    /// Query paginada filtrando por un rango de fechas (útil para el histórico de 2-3 meses)
-    Page<HistorialPosicion> findByFechaHoraBetween(
-            LocalDateTime inicio,
-            LocalDateTime fin,
-            Pageable pageable
-    );
+    @Override
+    @EntityGraph(attributePaths = {"vendedor"})
+    List<HistorialPosicion> findAll();
 }

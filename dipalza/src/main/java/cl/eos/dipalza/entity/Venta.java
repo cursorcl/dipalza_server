@@ -57,7 +57,7 @@ public class Venta {
 	private EstadoVenta estado;
 
 	// ---- Relación con detalles ----
-	@OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+	@OneToMany(mappedBy = "venta", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
 	@JsonManagedReference
 	private List<VentaDetalle> detalles = new ArrayList<>();
 
