@@ -19,7 +19,7 @@ public class VentaDetalle {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "venta_id", nullable = false)
     @JsonBackReference
     private Venta venta;

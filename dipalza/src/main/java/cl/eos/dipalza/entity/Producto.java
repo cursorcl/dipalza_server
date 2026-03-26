@@ -63,7 +63,7 @@ public class Producto {
 
 	private BigDecimal pieces;
 	// ---- Relación con Numerado ----
-	@OneToMany(mappedBy = "producto", cascade = CascadeType.ALL, orphanRemoval = true,  fetch = FetchType.EAGER)
+	@OneToMany(mappedBy = "producto", cascade = CascadeType.REMOVE, orphanRemoval = true,  fetch = FetchType.EAGER)
 	@SQLRestriction("estado = 'D' OR estado = 'R'")
 	private List<Numerado> numerados = new ArrayList<>();
 

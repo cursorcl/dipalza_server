@@ -1,13 +1,12 @@
 package cl.eos.dipalza.service.grabacion;
 
-import cl.eos.dipalza.entity.Numerado;
-import cl.eos.dipalza.entity.Producto;
-import cl.eos.dipalza.entity.VentaDetallePieza;
+import cl.eos.dipalza.entity.*;
 import cl.eos.dipalza.model.venta.VentaDetalleDTO;
 import cl.eos.dipalza.repository.NumeradoRepository;
 import cl.eos.dipalza.repository.ProductoRepository;
 import cl.eos.dipalza.repository.VentaDetallePiezaRepository;
 import cl.eos.dipalza.repository.VentaDetalleRepository;
+import cl.eos.dipalza.service.resultados.NumeracionResultado;
 import cl.eos.dipalza.service.resultados.VentaItemResultado;
 import cl.eos.dipalza.utils.Constants;
 import lombok.NonNull;
@@ -19,7 +18,9 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Component
 public class VentaItemProcessorNumerado implements VentaItemProcessor {
@@ -53,61 +54,43 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
         int nroLinea = context.nroLinea();
 
         Optional<Producto> productoOpt = buscarProducto(detalle.getIdProducto());
-        if (productoOpt.isEmpty()) {
+        if(productoOpt.isEmpty()) {
             return crearResultadoErrorProductoNoExiste(detalle, nroLinea);
         }
 
         Producto producto = productoOpt.get();
 
         List<Numerado> numeradosDisponibles = buscarNumeradosDisponibles(detalle.getIdProducto());
-        if (numeradosDisponibles.isEmpty()) {
+        if(numeradosDisponibles.isEmpty()) {
             return crearResultadoErrorSinNumerados(detalle, nroLinea, producto);
         }
 
         Porcentajes porcentajes = extraerPorcentajes(detalle);
         AsignacionPiezas asignacion = calcularAsignacion(producto, detalle);
 
-        if (asignacion.cantidadPiezasAsignada() <= 0) {
+        if(asignacion.cantidadPiezasAsignada() <= 0) {
             return crearResultadoErrorSinStockAsignable(detalle, nroLinea, producto);
         }
 
-        NumeradosAsignados numeradosAsignados = asignarNumerados(
-                producto,
-                numeradosDisponibles,
-                asignacion.cantidadPiezasAsignada()
-        );
+        NumeradosAsignados numeradosAsignados = asignarNumerados( producto, numeradosDisponibles, asignacion.cantidadPiezasAsignada() );
 
-        MontosVenta montos = calcularMontos(
-                producto,
-                numeradosAsignados.pesoRealAsignado(),
-                porcentajes
-        );
+        MontosVenta montos = calcularMontos( producto, numeradosAsignados.pesoRealAsignado(), porcentajes );
 
         try {
-            Long ventaDetalleId = guardarDetalleDocumento(
-                    context,
-                    producto,
-                    nroLinea,
-                    numeradosAsignados.nombreProductoConNumerados(),
-                    numeradosAsignados.pesoRealAsignado(),
-                    montos.ventaNetaReal(),
-                    porcentajes.porcentajeDescuento()
-            );
-
-            guardarPiezasAsociadas(ventaDetalleId, numeradosAsignados.numeradosUtilizados());
-
-            // Actualiza la cantidad vendida en cada produco
-            actualizarStockProducto(producto,  asignacion.cantidadPiezasAsignada(), numeradosAsignados.pesoRealAsignado());
+            guardarDetalleDocumento( context, producto, numeradosAsignados, montos, porcentajes );
+            guardarPiezasAsociadas(detalle.getId(), numeradosAsignados.numeradosUtilizados());
+            guardarStockProducto(producto, asignacion.cantidadPiezasAsignada(), numeradosAsignados.pesoRealAsignado());
 
             return crearResultadoExitoso(
                     producto,
                     detalle,
                     nroLinea,
                     asignacion,
-                    montos
+                    montos,
+                    numeradosAsignados
             );
 
-        } catch (DataAccessException ex) {
+        } catch(DataAccessException ex) {
             return crearResultadoErrorExcepcion(
                     producto,
                     detalle,
@@ -145,7 +128,7 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
     }
 
     private float normalizarPorcentaje(BigDecimal valor) {
-        if (valor == null) {
+        if(valor == null) {
             return 0f;
         }
         float porcentaje = valor.floatValue();
@@ -179,26 +162,25 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
             float cantidadPiezasAsignada
     ) {
         float pesoRealAsignado = 0f;
-        StringBuilder nombreProductoConNumerados = new StringBuilder(producto.getDescripcion());
+        StringBuilder nombreProductoConNumerados = new StringBuilder(":");
         List<Numerado> numeradosUtilizados = new ArrayList<>();
 
         int cantidad = (int) cantidadPiezasAsignada;
 
-        for (int i = 0; i < cantidad; i++) {
-            Numerado numerado = numeradosDisponibles.get(i);
-
+        for(int i = 0; i < cantidad; i++) {
+            Numerado numerado =  numeradosDisponibles.get(i);
             numerado.setEstado(Constants.ESTADO_NUMERADO_VENDIDO);
             numeradoRepository.save(numerado);
 
             numeradosUtilizados.add(numerado);
             pesoRealAsignado += numerado.getPeso().floatValue();
-            nombreProductoConNumerados.append(String.format("%02d", numerado.getNumero()));
+            nombreProductoConNumerados.append(String.format("%02d ", numerado.getNumero()));
         }
-
+        nombreProductoConNumerados.insert(0, producto.getDescripcion());
         return new NumeradosAsignados(
                 numeradosUtilizados,
                 pesoRealAsignado,
-                nombreProductoConNumerados.toString()
+                nombreProductoConNumerados.toString().trim()
         );
     }
 
@@ -222,21 +204,24 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
         );
     }
 
-    private Long guardarDetalleDocumento(
+    private void guardarDetalleDocumento(
             VentaItemContext context,
             Producto producto,
-            int nroLinea,
-            String nombreProductoConNumerados,
-            float pesoRealAsignado,
-            float ventaNetaReal,
-            float porcentajeDescuento
+            NumeradosAsignados numeradosAsignados,
+            MontosVenta montos,
+            Porcentajes porcentajes
     ) {
+
+        int nroLinea = context.nroLinea();
         String numeroLinea = String.format("%03d", nroLinea);
         String identificador = context.idenficador();
+        String nombreProductoConNumerados = numeradosAsignados.nombreProductoConNumerados();
+        float pesoRealAsignado = numeradosAsignados.pesoRealAsignado();
+        float ventaNetaReal = montos.ventaNetaReal();
+        float porcentajeDescuento = porcentajes.porcentajeDescuento();
 
-        return jdbcFacturacionTemplate.queryForObject(
-                Constants.INSERT_DETALLE_DOCUMENTO,
-                Long.class,
+        jdbcFacturacionTemplate.update(
+        Constants.INSERT_DETALLE_DOCUMENTO,
                 producto.getArticulo(),
                 ventaNetaReal,
                 Constants.PARIDAD,
@@ -248,25 +233,27 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
                 Constants.LOCAL_000,
                 producto.getArticulo(),
                 nombreProductoConNumerados,
-                porcentajeDescuento * -1f
-        );
+                porcentajeDescuento * -1f);
+
     }
 
-    private void actualizarStockProducto(Producto producto, float cantidadPiezasAsignada, float cantidadAsignada) {
+    private void guardarStockProducto(Producto producto, float cantidadPiezasAsignada, float cantidadAsignada) {
         // Se rebaja de la cantidad de vendidos lo que ya se pasó a facturación.
-        float nuevoStockVentas =  producto.getStockVentas().floatValue() - cantidadAsignada;
+        float nuevoStockVentas = producto.getStockVentas().floatValue() - cantidadAsignada;
         float nuevoPiezasVentas = producto.getPiezasVentas().floatValue() - cantidadPiezasAsignada;
         producto.setStockVentas(new BigDecimal(nuevoStockVentas));
         producto.setPiezasVentas(new BigDecimal(nuevoPiezasVentas));
         productoRepository.save(producto);
     }
+
     private void guardarPiezasAsociadas(Long ventaDetalleId, List<Numerado> numeradosUtilizados) {
-        if (ventaDetalleId == null || numeradosUtilizados == null || numeradosUtilizados.isEmpty()) {
+        if(ventaDetalleId == null || numeradosUtilizados == null || numeradosUtilizados.isEmpty()) {
             return;
         }
-
-        ventaDetalleRepository.findById(ventaDetalleId).ifPresent(ventaDetalle -> {
-            for (Numerado numerado : numeradosUtilizados) {
+        Optional<VentaDetalle> ventaDetalleOptional = ventaDetalleRepository.findById(ventaDetalleId);
+        if(ventaDetalleOptional.isPresent()) {
+            VentaDetalle ventaDetalle = ventaDetalleOptional.get();
+            for(Numerado numerado : numeradosUtilizados) {
                 VentaDetallePieza pieza = new VentaDetallePieza();
                 pieza.setVentaDetalle(ventaDetalle);
                 pieza.setNumerado(numerado);
@@ -274,7 +261,7 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
                 pieza.setCreadoEn(ventaDetalle.getVenta().getFecha());
                 ventaDetallePiezaRepository.save(pieza);
             }
-        });
+        }
     }
 
     private VentaItemResultado crearResultadoExitoso(
@@ -282,8 +269,23 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
             VentaDetalleDTO detalle,
             int nroLinea,
             AsignacionPiezas asignacion,
-            MontosVenta montos
+            MontosVenta montos,
+            NumeradosAsignados numeradosAsignados
     ) {
+        List<Numerado> list = numeradosAsignados.numeradosUtilizados();
+
+        List<String> numeradosUtilizados = list == null ? List.of() :
+                list.stream().map(Numerado::getNumero).
+                filter(Objects::nonNull).map(String::valueOf).
+                collect(Collectors.toList());
+
+        NumeracionResultado numeracionResultado = new NumeracionResultado(
+                asignacion.cantidadPiezasAsignada(),
+                asignacion.diferenciaPiezas(),
+                numeradosUtilizados,
+                numeradosAsignados.pesoRealAsignado()
+        );
+
         return new VentaItemResultado(
                 producto.getArticulo(),
                 nroLinea,
@@ -294,7 +296,7 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
                 montos.valorIvaDeLaVenta(),
                 montos.valorIlaDeLaVenta(),
                 montos.valorDescuentoDeLaVenta(),
-                null,
+                numeracionResultado,
                 null
         );
     }
@@ -380,7 +382,5 @@ public class VentaItemProcessorNumerado implements VentaItemProcessor {
                 "No hay stock numerado suficiente para asignar"
         );
     }
-
-
 
 }

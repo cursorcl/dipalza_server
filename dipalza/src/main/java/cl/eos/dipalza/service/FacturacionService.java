@@ -94,7 +94,7 @@ public class FacturacionService {
         VentaFilter filter = new VentaFilter(estados, null, null, null, null, null, null);
         Specification<Venta> specification = VentaSpecifications.toSpecification(filter);
 
-        List<Venta> ventas = ventaRepository.findAllOptimized(specification);
+        List<Venta> ventas = ventaRepository.findAll(specification);
         VentaMapper mapper = new VentaMapper();
         List<VentaDTO> ventasDTO = ventas.stream().map(v -> mapper.toVentaDTO(v)).toList();
 
