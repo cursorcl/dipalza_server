@@ -44,7 +44,7 @@ jobs:
 
       - name: Build JAR
         working-directory: dipalza
-        run: ./mvnw package -DskipTests
+        run: ./mvnw package -DskipTests -Dfrontend.skip=true
 
       - name: Upload JAR to GitHub Release
         uses: softprops/action-gh-release@v2

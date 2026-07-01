@@ -29,6 +29,7 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<frontend.skip>false</frontend.skip>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -128,6 +129,7 @@
 				<artifactId>frontend-maven-plugin</artifactId>
 				<version>1.15.0</version>
 				<configuration>
+					<skip>${frontend.skip}</skip>
 					<workingDirectory>../../dipalzaSpringbootClient</workingDirectory>
 					<nodeVersion>v22.14.0</nodeVersion>
 					<npmVersion>10.9.2</npmVersion>
