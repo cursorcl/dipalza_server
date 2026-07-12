@@ -24,9 +24,6 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         continue-on-error: true
-        with:
-          release-type: java
-          path: dipalza
 
   build:
     runs-on: ubuntu-latest
