@@ -423,7 +423,7 @@ public class VentaService {
 				desc = desc.add(nvl(d.getTotalDescuento()));
 				iva = iva.add(nvl(d.getTotalIva()));
 				ila = ila.add(nvl(d.getTotalIla()));
-				totalNeto = total.add(nvl(d.getTotalLinea()));
+				totalNeto = totalNeto.add(nvl(d.getTotalLinea()));
 				total = totalNeto.add(iva).add(ila);
 			}
 		}
