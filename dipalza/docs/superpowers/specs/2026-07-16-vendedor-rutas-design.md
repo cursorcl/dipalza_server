@@ -11,7 +11,9 @@
 - Cardinalidad: **muchos a muchos**. Un vendedor cubre varias rutas; una ruta puede ser cubierta por varios vendedores.
 - La tabla de asociación es un **vínculo simple** (sin estado activo/inactivo, sin fechas de auditoría adicionales).
 - La opción "Ruta" (single-select) que hoy existe en la pantalla de Configuración del vendedor **se reemplaza** por "Rutas" (multi-select, chips), representando esta nueva asociación maestra.
-- **Fuera de alcance / sin cambios:** el flujo de `LoginPage` (mantiene su propio picker single-select y sigue seteando `prefs.ruta`), la creación de venta (`venta.encabezado.edicion.page.dart`, no muestra la ruta al usuario, sigue enviando `prefs.ruta`) y `ClientesProvider.obtenerListaClientes` (ya trae todos los clientes del vendedor sin filtrar por ruta). Estos tres puntos consumen `prefs.ruta`, que sigue existiendo y sin relación con la nueva asociación vendedor-rutas.
+- El login **deja de pedir una ruta**: se elimina el selector de ruta de `LoginPage`. Tras autenticar, la app usa las rutas ya configuradas para ese vendedor (`vendedor_ruta`); si no tiene ninguna, se le obliga a seleccionarlas antes de continuar (ver sección 4).
+- **Hallazgo relevante:** `Venta.codigoRuta` es una FK `NOT NULL` obligatoria en el backend (`VentaService` valida `"Falta el código de ruta!"`). Hoy ese valor se toma de `prefs.ruta` (una "ruta activa" seteada una sola vez, en el login). Como cada `Cliente` ya tiene su propia ruta (`Cliente.codigoRuta` en el backend, campo `ruta` en `ClientesModel`), se decide **eliminar el concepto de "ruta activa del vendedor"** y derivar `codigoRuta` de la venta directamente desde el cliente seleccionado. Esto requiere corregir un bug preexistente: `ClientesModel.fromJson` lee `json["tuta"]` (typo) en lugar de `json["ruta"]`, por lo que ese campo llega siempre vacío hoy. Con el typo corregido, `_clienteSeleccionado.ruta` pasa a ser la fuente de `codigoRuta` en `venta.encabezado.edicion.page.dart`, y `prefs.ruta` deja de usarse en la creación de venta.
+- **Fuera de alcance / sin cambios:** `ClientesProvider.obtenerListaClientes` y `clientes.page.dart` (ya traen todos los clientes del vendedor sin filtrar por ruta; el parámetro de ruta que reciben ya era ignorado por el backend, se deja como está). `PreferenciasUsuario.ruta` (getter/setter) no se elimina — queda simplemente sin escritores activos, para no romper el método ya-no-llamado `ClientesProvider.obtenerListaClientesv2`.
 
 ---
 
@@ -141,26 +143,33 @@ Delegación directa al servicio (controller delgado, igual que `RutaController`)
 
 ## 3. Flutter (`flutterDipalza`)
 
-Se mantiene `prefs.ruta` (single) intacto para login/venta/clientes (ver "Fuera de alcance"). El nuevo flujo multi-select es independiente.
+El nuevo flujo multi-select (Configuración y login) reemplaza toda dependencia de `prefs.ruta` como "ruta activa del vendedor" — ver hallazgo en la sección de Alcance. `prefs.ruta` deja de tener escritores, aunque el getter/setter no se elimina (evita romper el método ya no invocado `ClientesProvider.obtenerListaClientesv2`).
 
 ### `RutasPage` (`lib/src/page/rutas/rutas.page.dart`)
 
-Se agregan parámetros opcionales, retrocompatibles con el uso actual desde `LoginPage`:
+Se agregan tres parámetros opcionales, retrocompatibles con el uso actual (sin argumentos) desde `LoginPage`:
 
 ```dart
 class RutasPage extends StatefulWidget {
   final bool multiSelect;
   final List<RutasModel> seleccionInicial;
-  const RutasPage({Key? key, this.multiSelect = false, this.seleccionInicial = const []}) : super(key: key);
+  final bool obligatorio;
+  const RutasPage({
+    Key? key,
+    this.multiSelect = false,
+    this.seleccionInicial = const [],
+    this.obligatorio = false,
+  }) : super(key: key);
 }
 ```
 
-- Si `multiSelect == false` (default): comportamiento actual sin cambios (tap en fila → `AppNavigator.pop(ruta)` con un solo `RutasModel`).
-- Si `multiSelect == true`: cada fila muestra un `Checkbox` (estado en `Set<String> _codigosSeleccionados`, inicializado desde `seleccionInicial`); el `AppBar` agrega una acción "Guardar" (ícono check) que hace `AppNavigator.pop(...)` con la `List<RutasModel>` filtrada por códigos seleccionados.
+- `multiSelect == false` (default): comportamiento actual sin cambios (tap en fila → `AppNavigator.pop(ruta)` con un solo `RutasModel`).
+- `multiSelect == true`: cada fila muestra un `Checkbox` (estado en `Set<String> _codigosSeleccionados`, inicializado desde `seleccionInicial`); el `AppBar` agrega una acción "Guardar" (ícono check) que hace `AppNavigator.pop(...)` con la `List<RutasModel>` filtrada por códigos seleccionados.
+- `obligatorio == true` (solo tiene efecto junto con `multiSelect: true`, usado por el flujo de login forzado — ver sección 4): `PopScope(canPop: false, ...)` bloquea el back del sistema/gesto y no se muestra flecha de "volver"; el botón "Guardar" queda deshabilitado hasta que haya al menos 1 ruta marcada.
 
 ### `app_router.dart`
 
-El case `AppRoutes.rutas` lee `settings.arguments` como `Map<String, dynamic>?` (mismo patrón usado en `ventaDetalle`/`ventaItemEdicion`) para extraer `multiSelect` y `seleccionInicial`; si no hay argumentos, construye `RutasPage()` como hoy.
+El case `AppRoutes.rutas` lee `settings.arguments` como `Map<String, dynamic>?` (mismo patrón usado en `ventaDetalle`/`ventaItemEdicion`) para extraer `multiSelect`, `seleccionInicial` y `obligatorio`; si no hay argumentos, construye `RutasPage()` como hoy.
 
 ### Nuevo `VendedorRutaProvider` (`lib/src/provider/vendedor_ruta_provider.dart`)
 
@@ -215,6 +224,65 @@ Future<void> _pickRutas() async {
 
 - Reemplaza la `ListTile` "Ruta" (líneas 511-524) por una sección "Rutas" cuyo subtítulo/cuerpo muestra las seleccionadas como chips (`Wrap` de `Chip`, igual look que la sección "Recientes" ya existente en la misma pantalla), y cuyo `onTap` (en la fila o en un ícono de edición) llama a `_pickRutas`.
 
+### Corrección: `ClientesModel` (`lib/src/model/clientes_model.dart`)
+
+Bug preexistente en `fromJson` (línea 41): `ruta: json["tuta"] ?? ""` → se corrige a `ruta: json["ruta"] ?? ""`. Sin este fix, el campo `ruta` del cliente siempre llega vacío y no sirve como fuente de `codigoRuta` para la venta.
+
+### `venta.encabezado.edicion.page.dart` — origen de `codigoRuta`
+
+En `saveVenta()` (línea 250), cambia:
+
+```dart
+codigoRuta: pref.ruta,
+```
+
+por:
+
+```dart
+codigoRuta: _clienteSeleccionado!.ruta,
+```
+
+Ya no depende de `prefs.ruta` ni de ningún concepto de "ruta activa del vendedor" — la ruta de la venta es la del cliente que se está facturando.
+
+---
+
+## 4. Login sin selección de ruta (`lib/src/page/login/`)
+
+Al guardar (con `obligatorio: true`), `RutasPage` hace `AppNavigator.pop(...)` igual que en modo `multiSelect` normal — quien la invocó (`LoginPage`) es responsable de persistir la selección vía `VendedorRutaProvider` y navegar a Home.
+
+### `LoginBloc` (`lib/src/bloc/login_bloc.dart`) y `Validators` (`lib/src/page/login/login_validacion.dart`)
+
+Se elimina todo lo relacionado a ruta, ya que el login deja de exigirla para habilitar el botón "Ingresar":
+- Se quita `_rutaController`, `rutaStream`, `changeRuta`, `ruta` (getter) de `LoginBloc`.
+- Se quita `validarRuta` de `Validators`.
+- `formValidStream` pasa de `Rx.combineLatest3(usuarioStream, passwordStream, rutaStream, ...)` a `Rx.combineLatest2(usuarioStream, passwordStream, (a, b) => true)`.
+
+### `LoginPage` (`lib/src/page/login/login.page.dart`)
+
+- Se elimina `_rutaSeleccionada`, el widget `_crearSelectorRutas` y su uso en `_loginForm`.
+- Se elimina el reseteo `_rutaSeleccionada = null; bloc.changeRuta('');` dentro de `_crearBotonesSecundarios` (ya no aplica).
+- Se elimina la línea `if (_rutaSeleccionada != null) prefs.ruta = ...` en `_login()`.
+- En `_login()`, tras un login exitoso (`resp.status == 200`), antes de navegar a Home:
+
+```dart
+final rutas = await VendedorRutaProvider()
+    .obtenerRutasAsignadas(response.codigo, response.tipo);
+
+if (rutas.isEmpty) {
+  final seleccion = await AppNavigator.pushNamed(
+    AppRoutes.rutas,
+    arguments: {'multiSelect': true, 'obligatorio': true},
+  );
+  final nuevas = List<RutasModel>.from(seleccion);
+  await VendedorRutaProvider().guardarRutasAsignadas(
+      response.codigo, response.tipo, nuevas.map((r) => r.codigo).toList());
+}
+
+AppNavigator.pushReplacementNamed(AppRoutes.home);
+```
+
+Si `obtenerRutasAsignadas` lanza una excepción (falla de red), se captura y se muestra el mismo diálogo de error que ya usa `_login()` para credenciales inválidas, sin navegar — el usuario puede reintentar tocando "Ingresar" de nuevo.
+
 ---
 
 ## Manejo de errores
@@ -225,4 +293,8 @@ Future<void> _pickRutas() async {
 ## Testing
 
 - Backend: tests de servicio (`VendedorRutaServiceTest`, Mockito puro) cubriendo: vendedor no encontrado, ruta no encontrada, reemplazo correcto del set completo (delete + saveAll), listado vacío. Tests de controller (`@WebMvcTest`) verificando `GET`/`PUT` y códigos de estado, siguiendo la Capa 1/Capa 2 documentadas en `2026-07-12-tests-springboot-design.md`.
-- Flutter: no hay suite de tests automatizados existente para providers/páginas de este estilo en el repo; verificación manual del flujo (abrir Configuración → seleccionar rutas con chips → guardar → reabrir y confirmar persistencia) queda como paso de verificación funcional, no como test automatizado nuevo.
+- Flutter: no hay suite de tests automatizados existente para providers/páginas de este estilo en el repo; verificación manual queda como paso de verificación funcional, cubriendo al menos:
+  - Configuración → seleccionar rutas con chips → guardar → reabrir y confirmar persistencia.
+  - Login de un vendedor sin rutas configuradas → pantalla bloqueante de selección (sin back) → guardar → llega a Home.
+  - Login de un vendedor con rutas ya configuradas → va directo a Home, sin pantalla de rutas.
+  - Crear una venta y confirmar que `codigoRuta` enviado corresponde a la ruta del cliente seleccionado (no a `prefs.ruta`).
