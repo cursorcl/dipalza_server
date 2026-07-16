@@ -35,6 +35,7 @@ public class VendedorRutaService {
         this.rutaMapper = rutaMapper;
     }
 
+    @Transactional(readOnly = true)
     public List<RutaDTO> getRutasByVendedor(String codigo, String tipo) {
         return vendedorRutaRepository.findByIdCodigoVendedorAndIdTipoVendedor(codigo, tipo)
                 .stream()
