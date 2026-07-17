@@ -23,11 +23,11 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 class VendedorRutaServiceTest {
@@ -99,9 +99,13 @@ class VendedorRutaServiceTest {
 
     @Test
     void asignarRutas_datosValidos_reemplazaSetCompleto() {
+        Ruta r01 = new Ruta();
+        r01.setCodigo("R01");
+        Ruta r02 = new Ruta();
+        r02.setCodigo("R02");
         when(vendedorRepo.findById(new VendedorId("001", "V"))).thenReturn(Optional.of(new Vendedor()));
-        when(rutaRepo.findById("R01")).thenReturn(Optional.of(new Ruta()));
-        when(rutaRepo.findById("R02")).thenReturn(Optional.of(new Ruta()));
+        when(rutaRepo.findById("R01")).thenReturn(Optional.of(r01));
+        when(rutaRepo.findById("R02")).thenReturn(Optional.of(r02));
         when(vendedorRutaRepo.findByIdCodigoVendedorAndIdTipoVendedor("001", "V"))
                 .thenReturn(List.of(asociacion("R01"), asociacion("R02")));
         when(rutaMapper.toDTO(any())).thenReturn(dto("R01"), dto("R02"));
@@ -109,7 +113,14 @@ class VendedorRutaServiceTest {
         List<RutaDTO> result = service.asignarRutas("001", "V", List.of("R01", "R02"));
 
         verify(vendedorRutaRepo).deleteByIdCodigoVendedorAndIdTipoVendedor("001", "V");
-        verify(vendedorRutaRepo).saveAll(anyList());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<VendedorRuta>> captor = ArgumentCaptor.forClass(List.class);
+        verify(vendedorRutaRepo).saveAll(captor.capture());
+        // Reproduce el bug real: sin `vr.setRuta(...)`, esta aserción fallaría
+        // porque `getRuta()` quedaría null pese a haber validado la ruta.
+        assertThat(captor.getValue()).extracting(VendedorRuta::getRuta).doesNotContainNull();
+
         assertThat(result).hasSize(2);
     }
 }

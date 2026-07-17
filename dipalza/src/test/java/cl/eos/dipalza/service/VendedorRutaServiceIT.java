@@ -75,4 +75,21 @@ class VendedorRutaServiceIT {
         assertThat(rutas).hasSize(1);
         assertThat(rutas.get(0).getCodigo()).isEqualTo(CODIGO_RUTA);
     }
+
+    @Test
+    void asignarRutas_retornoDirecto_noContieneRutaNull() {
+        // A diferencia del test anterior, aquí se asserta sobre el valor que
+        // `asignarRutas` retorna directamente (el mismo que recibe el controlador
+        // HTTP), no sobre una llamada externa posterior. `asignarRutas` termina
+        // en un self-invocation a `getRutasByVendedor` DENTRO de su propia
+        // transacción: el identity map de Hibernate devuelve ahí las mismas
+        // instancias de VendedorRuta recién guardadas, así que si su asociación
+        // `ruta` no queda seteada explícitamente, este assert falla con NPE
+        // (RutaMapper.toDTO(null) produce un elemento null en la lista).
+        List<RutaDTO> asignadas =
+                vendedorRutaService.asignarRutas(CODIGO_VENDEDOR, TIPO_VENDEDOR, List.of(CODIGO_RUTA));
+
+        assertThat(asignadas).hasSize(1);
+        assertThat(asignadas.get(0).getCodigo()).isEqualTo(CODIGO_RUTA);
+    }
 }

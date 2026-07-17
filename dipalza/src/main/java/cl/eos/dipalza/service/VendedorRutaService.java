@@ -1,5 +1,6 @@
 package cl.eos.dipalza.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import cl.eos.dipalza.entity.Ruta;
 import cl.eos.dipalza.entity.VendedorRuta;
 import cl.eos.dipalza.entity.ids.VendedorId;
 import cl.eos.dipalza.entity.ids.VendedorRutaId;
@@ -48,18 +50,26 @@ public class VendedorRutaService {
         if (vendedorRepository.findById(new VendedorId(codigo, tipo)).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendedor no encontrado");
         }
+
+        List<Ruta> rutas = new ArrayList<>();
         for (String codigoRuta : codigosRuta) {
-            if (rutaRepository.findById(codigoRuta).isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ruta " + codigoRuta + " no encontrada");
-            }
+            Ruta ruta = rutaRepository.findById(codigoRuta)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Ruta " + codigoRuta + " no encontrada"));
+            rutas.add(ruta);
         }
 
         vendedorRutaRepository.deleteByIdCodigoVendedorAndIdTipoVendedor(codigo, tipo);
 
-        List<VendedorRuta> nuevas = codigosRuta.stream()
-                .map(codigoRuta -> {
+        // Se asigna la Ruta ya validada (no solo el id) porque, dentro de esta
+        // misma transacción, el identity map de Hibernate devolverá estas mismas
+        // instancias en la relectura de getRutasByVendedor(); sin la asociación
+        // seteada, esa relectura vería `ruta == null`.
+        List<VendedorRuta> nuevas = rutas.stream()
+                .map(ruta -> {
                     VendedorRuta vr = new VendedorRuta();
-                    vr.setId(new VendedorRutaId(codigo, tipo, codigoRuta));
+                    vr.setId(new VendedorRutaId(codigo, tipo, ruta.getCodigo()));
+                    vr.setRuta(ruta);
                     return vr;
                 })
                 .collect(Collectors.toList());
