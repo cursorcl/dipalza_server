@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -90,5 +91,28 @@ class ClienteServiceCacheTest {
         clienteService.getAllClientes();
 
         verify(clienteRepository, times(1)).findAll();
+    }
+
+    @Test
+    void createOrUpdateCliente_evictaElCacheDeClientesByVendedor() {
+        String codigoVendedor = "CACHE-V02";
+        when(clienteRepository.findByCodigoVendedorOrderByRazonAsc(codigoVendedor))
+                .thenReturn(List.of(entidad("55555555-5", "001")));
+
+        clienteService.getClientesByVendedor(codigoVendedor);
+        clienteService.getClientesByVendedor(codigoVendedor);
+        verify(clienteRepository, times(1)).findByCodigoVendedorOrderByRazonAsc(codigoVendedor);
+
+        Cliente guardado = entidad("66666666-6", "002");
+        when(clienteRepository.save(any())).thenReturn(guardado);
+
+        ClienteDTO nuevoCliente = new ClienteDTO();
+        nuevoCliente.setRut("66666666-6");
+        nuevoCliente.setCodigo("002");
+        nuevoCliente.setCodigoVendedor(codigoVendedor);
+        clienteService.createOrUpdateCliente(nuevoCliente);
+
+        clienteService.getClientesByVendedor(codigoVendedor);
+        verify(clienteRepository, times(2)).findByCodigoVendedorOrderByRazonAsc(codigoVendedor);
     }
 }

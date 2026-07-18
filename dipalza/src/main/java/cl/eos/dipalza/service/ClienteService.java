@@ -7,6 +7,7 @@ import cl.eos.dipalza.mapper.ClienteMapper;
 import cl.eos.dipalza.model.ClienteDTO;
 import cl.eos.dipalza.repository.ClienteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
@@ -52,12 +53,16 @@ public class ClienteService {
 
     }
 
+    @CacheEvict(value = {CacheConfig.CLIENTES_BY_VENDEDOR, CacheConfig.CLIENTES_BY_RUTA,
+            CacheConfig.CLIENTES_BY_ID, CacheConfig.ALL_CLIENTES}, allEntries = true)
     public ClienteDTO createOrUpdateCliente(ClienteDTO clienteDTO) {
         Cliente cliente = clienteMapper.toEntity(clienteDTO);
         Cliente savedCliente = clienteRepository.save(cliente);
         return clienteMapper.toDTO(savedCliente);
     }
 
+    @CacheEvict(value = {CacheConfig.CLIENTES_BY_VENDEDOR, CacheConfig.CLIENTES_BY_RUTA,
+            CacheConfig.CLIENTES_BY_ID, CacheConfig.ALL_CLIENTES}, allEntries = true)
     public boolean deleteCliente(String rut, String codigo) {
         ClienteId id = new ClienteId(rut, codigo);
         if(clienteRepository.existsById(id)) {
