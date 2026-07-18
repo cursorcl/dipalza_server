@@ -2,22 +2,33 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches: [main]
   workflow_dispatch:
     inputs:
-      tag_name:
-        description: 'Tag del release al que adjuntar el JAR (ej: v1.1.0)'
-        required: true
+      dry_run:
+        description: 'Ejecutar en modo dry-run (no publica nada)'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install release tooling
+        run: npm ci
 
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -26,13 +37,7 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build JAR
-        working-directory: dipalza
-        run: ./mvnw package -DskipTests -Dfrontend.skip=true
-
-      - name: Upload JAR to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
-          generate_release_notes: true
-          files: dipalza/target/dipalza-*.jar
+      - name: Run semantic-release
+        run: npx semantic-release ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
