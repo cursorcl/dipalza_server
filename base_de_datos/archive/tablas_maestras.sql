@@ -118,11 +118,11 @@ CREATE OR ALTER PROCEDURE dbo.usp_ProcessMasterDataQueue
                 MERGE dbo.condicionventa AS T
                 USING (SELECT * FROM #SourceData WHERE tabla = '009') AS S
                 ON (T.codigo = S.codigo COLLATE DATABASE_DEFAULT)
-                WHEN MATCHED AND S.ChangeType IN ('I', 'U') AND (T.descripcion <> S.descripcion COLLATE DATABASE_DEFAULT)
-                    THEN UPDATE SET T.descripcion = S.descripcion
+                WHEN MATCHED AND S.ChangeType IN ('I', 'U') AND (T.descripcion <> S.descripcion COLLATE DATABASE_DEFAULT OR T.dias <> S.valor)
+                    THEN UPDATE SET T.descripcion = S.descripcion, T.dias = S.valor
                 WHEN MATCHED AND S.ChangeType = 'D' THEN DELETE
                 WHEN NOT MATCHED BY TARGET AND S.ChangeType IN ('I', 'U')
-                    THEN INSERT (codigo, descripcion) VALUES (S.codigo, S.descripcion);
+                    THEN INSERT (codigo, descripcion, dias) VALUES (S.codigo, S.descripcion, S.valor);
 
                 -- Conducción (015)
                 MERGE dbo.conduccion AS T
