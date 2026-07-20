@@ -563,10 +563,10 @@ git commit -m "feat(db): agrega poblado inicial masivo de ventas desde Mastersof
 **Interfaces:**
 - N/A — tarea de verificación pura.
 
-- [ ] **Step 1: Confirmar que los 8 archivos existen y en el orden correcto**
+- [ ] **Step 1: Confirmar que los 9 archivos existen y en el orden correcto**
 
 Run: `ls /Users/cursor/Dev/dipalza/application_v2.0/dipalza_server/base_de_datos/deploy_desde_cero/`
-Expected:
+Expected (actualizado tras el fix de la condición de carrera entre `05` y `07`, ver nota de estado al final de este documento — el paquete pasa de 8 a 9 archivos):
 ```
 00_crear_base_datos.sql
 01_esquema_ventas.sql
@@ -576,6 +576,7 @@ Expected:
 05_jobs_msdb.sql
 06_configuracion_inicial.sql
 07_poblado_inicial_ventas.sql
+08_habilitar_jobs.sql
 ```
 
 - [ ] **Step 2: Confirmar que ningún objeto nombrado en `install_dipalza_sync.sql` quedó fuera de la extracción**
@@ -599,7 +600,7 @@ Expected: sin output (archivo sin cambios)
 Editar `docs/superpowers/specs/2026-07-19-deploy-desde-cero-ventas-design.md`, agregar al final de la sección "6. Riesgos / limitaciones conocidas":
 
 ```markdown
-- **Estado (2026-07-19):** los 8 scripts fueron generados y verificados estructuralmente (conteo de objetos, balance de transacciones), pero **nunca ejecutados contra una instancia SQL Server real** — no había una disponible durante esta sesión. Antes de usarlos en un ambiente real: (1) confirmar columnas reales de `msoclientes`/`msovendedor`, (2) decidir e implementar el cálculo real de `Stock` inicial vía `calcularStock`/`calcularStockNumerado`, (3) definir el origen real de `producto.costo`, (4) ejecutar en un ambiente de prueba antes de producción.
+- **Estado (2026-07-19):** los 9 scripts fueron generados y verificados estructuralmente (conteo de objetos, balance de transacciones), pero **nunca ejecutados contra una instancia SQL Server real** — no había una disponible durante esta sesión. Antes de usarlos en un ambiente real: (1) confirmar columnas reales de `msoclientes`/`msovendedor`, (2) decidir e implementar el cálculo real de `Stock` inicial vía `calcularStock`/`calcularStockNumerado`, (3) definir el origen real de `producto.costo`, (4) ejecutar en un ambiente de prueba antes de producción.
 ```
 
 - [ ] **Step 5: Commit final**
