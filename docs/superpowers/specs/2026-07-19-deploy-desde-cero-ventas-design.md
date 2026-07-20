@@ -33,7 +33,7 @@ Carpeta nueva: `base_de_datos/deploy_desde_cero/`.
 | # | Archivo | Contenido | Base | Origen |
 |---|---|---|---|---|
 | 00 | `00_crear_base_datos.sql` | `CREATE DATABASE ventas` con collation `Modern_Spanish_CI_AS` | master | Nuevo |
-| 01 | `01_esquema_ventas.sql` | Todas las `CREATE TABLE` de la app (`install_dipalza_sync.sql:62-277`), índices (`:278-297`), seed de roles (`:299`) | ventas | Extraído |
+| 01 | `01_esquema_ventas.sql` | Todas las `CREATE TABLE` de la app (`install_dipalza_sync.sql:62-277`), índices (`:278-297`), seed de roles (`:299`) + columna `producto.costo` (money NOT NULL DEFAULT 0) agregada — ver nota de drift abajo | ventas | Extraído + corrección |
 | 02 | `02_listaprecioactiva_fuente.sql` | `ListaPrecioActiva`/`ListaPrecioActivaQueue` fuente (`:303-322`) + triggers outbox/guard (`:323-359`) + `tgr_ventadetalle_producto` (`:360-400`) | ventas | Extraído |
 | 03 | `03_colas_triggers_mastersoft.sql` | 3 colas (`:404-448`), `ListaPrecioActiva` réplica, todos los triggers de Mastersoft (stock `:449-552`, tablas maestras `:553-586`, precios `:587-625`, resync `:626-659`, guard `:660-676`), procesador inverso `usp_ProcessListaPrecioActivaQueue` (`:677-740`) | Mastersoft | Extraído |
 | 04 | `04_procesadores_ventas.sql` | 3 procesadores: stock (`:743-816`), tablas maestras (`:817-929`), precios (`:931-1014`) | ventas | Extraído |
@@ -62,6 +62,10 @@ Notas de implementación:
 - El orden de inserción respeta las FKs existentes: `ruta`/`condicionventa`/`conduccion`/`ila` antes que `producto`/`cliente`/`vendedor` (que no dependen de ellas para el insert, pero `cliente.codigo_ruta` referencia lógicamente `ruta` aunque no hay FK declarada en el esquema).
 - Los `TODO` quedan como comentarios `-- TODO: ...` inmediatamente sobre la línea afectada, no como bloques separados, para que sean fáciles de ubicar y editar antes de ejecutar en un ambiente real.
 - Todas las comparaciones cross-collation usan `COLLATE Modern_Spanish_CI_AS`, igual que el resto de `install_dipalza_sync.sql`.
+
+### 4.1 Drift de esquema detectado: `producto.costo`
+
+La entidad JPA `Producto` (`dipalza_server/dipalza/src/main/java/cl/eos/dipalza/entity/Producto.java`) tiene un campo `costo` **NOT NULL** que no existe en el `CREATE TABLE producto` de `install_dipalza_sync.sql`. El usuario confirmó que en producción esta columna **ya existe** (fue agregada fuera de este script, drift no documentado). Por lo tanto `01_esquema_ventas.sql` agrega `costo money NOT NULL DEFAULT 0` al `CREATE TABLE producto`, y `07_poblado_inicial_ventas.sql` la puebla en `0` (mismo TODO ya descrito).
 
 ## 5. Verificación
 
