@@ -4,6 +4,7 @@ import cl.eos.dipalza.model.HistorialPosicionDTO;
 import cl.eos.dipalza.model.PosicionDTO;
 import cl.eos.dipalza.service.PosicionService;
 import cl.eos.dipalza.specifications.PosicionFilter;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,7 +37,7 @@ public class PosicionController {
     }
 
     @PostMapping
-    public ResponseEntity<Void> registrarPosicion(@RequestBody PosicionDTO dto) {
+    public ResponseEntity<Void> registrarPosicion(@Valid @RequestBody PosicionDTO dto) {
         posicionService.registrarUbicacion(dto);
         return ResponseEntity.accepted().build();
     }

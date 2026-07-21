@@ -114,10 +114,12 @@ CREATE TABLE dbo.configuracion (
 );
 
 CREATE TABLE dbo.historial_posicion (
-    id         bigint IDENTITY(1,1) NOT NULL,
-    vendedorId varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
-    fechaHora  datetime2(0) NOT NULL,
-    posicion   geography NOT NULL,
+    id             bigint IDENTITY(1,1) NOT NULL,
+    vendedorId     varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
+    vendedorCodigo varchar(3) COLLATE Modern_Spanish_CI_AS NULL,
+    fechaHora      datetime2(0) NOT NULL,
+    latitud        float NOT NULL,
+    longitud       float NOT NULL,
     CONSTRAINT pk_historial_posicion PRIMARY KEY (id)
 );
 
@@ -130,9 +132,11 @@ CREATE TABLE dbo.ila (
 
 CREATE TABLE dbo.posicion (
     vendedorId          varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
-    posicion            geography NOT NULL,
+    vendedorCodigo      varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
+    latitud             float NOT NULL,
+    longitud            float NOT NULL,
     ultimaActualizacion datetime2(0) NOT NULL,
-    CONSTRAINT posicion_pk PRIMARY KEY (vendedorId)
+    CONSTRAINT posicion_pk PRIMARY KEY (vendedorId, vendedorCodigo)
 );
 
 CREATE TABLE dbo.producto (
@@ -281,9 +285,6 @@ CREATE UNIQUE NONCLUSTERED INDEX configuracion_propiedad_IDX
 
 CREATE NONCLUSTERED INDEX idx_histotial_vendedor_fechaHora
     ON dbo.historial_posicion (vendedorId, fechaHora);
-
-CREATE SPATIAL INDEX sidx_historial_posicion
-    ON dbo.historial_posicion (posicion);
 
 CREATE NONCLUSTERED INDEX venta_codigo_vendedor_IDX
     ON dbo.venta (codigo_vendedor, tipo_vendedor);
