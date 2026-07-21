@@ -12,8 +12,6 @@ import cl.eos.dipalza.repository.PosicionRepository;
 import cl.eos.dipalza.repository.VendedorRepository;
 import cl.eos.dipalza.specifications.HistorialPosicionSpecifications;
 import cl.eos.dipalza.specifications.PosicionFilter;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,8 +25,6 @@ public class PosicionService {
     private final HistorialPosicionRepository historialRepository;
     private final VendedorRepository vendedorRepository;
     private final SimpMessagingTemplate messagingTemplate;
-
-    private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
     public PosicionService(PosicionRepository posicionRepository, HistorialPosicionRepository historialRepository, VendedorRepository vendedorRepository, SimpMessagingTemplate messagingTemplate) {
         this.posicionRepository = posicionRepository;
