@@ -43,7 +43,7 @@ public class SecurityConfigProdSec {
                     .requestMatchers("/assets/**", "/media/**", "/chunk-**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/rutas", "/ping").permitAll()
                     .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
-                    .requestMatchers("/ws-posiciones/**").permitAll()
+                    .requestMatchers("/ws-posiciones", "/ws-posiciones/**").permitAll()
                     .requestMatchers("/auth/**").permitAll()
                     .requestMatchers("/api/**").authenticated()
                     .requestMatchers(HttpMethod.GET, "/{path:[^\\.]*}", "/**/{path:[^\\.]*}").permitAll()

@@ -85,6 +85,6 @@ public class PosicionService {
         historialRepository.save(historial);
 
 
-        messagingTemplate.convertAndSend("/topic/posiciones", dto);
+        messagingTemplate.convertAndSend("/topic/posiciones", PosicionMapper.toPosicionDTO(posicion));
     }
 }

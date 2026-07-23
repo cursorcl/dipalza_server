@@ -9,6 +9,7 @@ import cl.eos.dipalza.repository.PosicionRepository;
 import cl.eos.dipalza.repository.VendedorRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -83,16 +84,18 @@ class PosicionServiceTest {
     }
 
     @Test
-    void registrarUbicacion_enviaAlTopicWebSocket() {
+    void registrarUbicacion_enviaAlTopicWebSocket_conNombreDelVendedor() {
         VendedorId vid = new VendedorId("V01", "0 ");
         Vendedor vend = new Vendedor();
         vend.setId(vid);
+        vend.setNombre("Juan");
         when(vendedorRepo.getReferenceById(vid)).thenReturn(vend);
         when(posicionRepo.findByVendedorId(vid)).thenReturn(null);
 
-        PosicionDTO posDto = dto("V01");
-        service.registrarUbicacion(posDto);
+        service.registrarUbicacion(dto("V01"));
 
-        verify(messagingTemplate).convertAndSend("/topic/posiciones", posDto);
+        ArgumentCaptor<PosicionDTO> captor = ArgumentCaptor.forClass(PosicionDTO.class);
+        verify(messagingTemplate).convertAndSend(eq("/topic/posiciones"), captor.capture());
+        assertThat(captor.getValue().vendedorNombre()).isEqualTo("Juan");
     }
 }
