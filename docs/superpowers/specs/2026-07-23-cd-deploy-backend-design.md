@@ -57,7 +57,6 @@ VERSION="$1"
 BASE=/opt/dipalza-app
 RELEASE_DIR="$BASE/releases/$VERSION"
 LIVE_LINK="$BASE/current"
-TMP_LINK="$BASE/current_tmp"
 
 if [ ! -f "$RELEASE_DIR/dipalza.jar" ]; then
   echo "ERROR: no existe $RELEASE_DIR/dipalza.jar" >&2
@@ -66,9 +65,13 @@ fi
 
 sudo systemctl stop dipalza-app.service
 
-# Swap atómico del symlink (sin ventana intermedia sin 'current')
-ln -sfn "$RELEASE_DIR" "$TMP_LINK"
-mv -Tf "$TMP_LINK" "$LIVE_LINK"
+# El servicio ya está detenido en este punto, así que no hace falta el
+# truco de symlink temporal + mv -T para evitar una ventana sin tráfico:
+# no hay tráfico. `ln -sfn` reemplaza el symlink existente directamente
+# (la `-n` evita que, si 'current' es un symlink a un directorio, siga
+# el enlace y cree el nuevo symlink DENTRO de él). Además, `mv -T` no
+# existe en macOS/BSD — este comando es portable a ambos.
+ln -sfn "$RELEASE_DIR" "$LIVE_LINK"
 
 sudo systemctl start dipalza-app.service
 
