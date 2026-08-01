@@ -48,4 +48,16 @@ class GeocodificacionServiceCacheTest {
 
         verify(restTemplate, times(2)).getForObject(anyString(), eq(NominatimResponseDTO.class), any(), any());
     }
+
+    @Test
+    void obtenerCalle_resultaEnCalleSinIdentificar_noCacheaElResultado() {
+        NominatimResponseDTO respuesta = new NominatimResponseDTO(null, null);
+        when(restTemplate.getForObject(anyString(), eq(NominatimResponseDTO.class), any(), any()))
+                .thenReturn(respuesta);
+
+        service.obtenerCalle(-33.3, -71.3);
+        service.obtenerCalle(-33.3, -71.3);
+
+        verify(restTemplate, times(2)).getForObject(anyString(), eq(NominatimResponseDTO.class), any(), any());
+    }
 }

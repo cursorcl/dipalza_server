@@ -96,4 +96,43 @@ class GeocodificacionServiceTest {
 
         assertThat(duracion).isGreaterThanOrEqualTo(1000);
     }
+
+    @Test
+    void obtenerCalle_variasLlamadasConcurrentesConCoordenadasDistintas_respetanElEspaciadoMinimo() throws InterruptedException {
+        GeocodificacionService service = new GeocodificacionService(restTemplate);
+        NominatimResponseDTO respuesta = new NominatimResponseDTO(
+                new NominatimAddressDTO("Calle X", null, null, null), "Calle X, Chile");
+        java.util.List<Long> tiempos = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        when(restTemplate.getForObject(anyString(), eq(NominatimResponseDTO.class), any(), any()))
+                .thenAnswer(invocation -> {
+                    tiempos.add(System.nanoTime());
+                    return respuesta;
+                });
+
+        int n = 3;
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(n);
+        java.util.concurrent.CountDownLatch listos = new java.util.concurrent.CountDownLatch(n);
+        java.util.concurrent.CyclicBarrier arranque = new java.util.concurrent.CyclicBarrier(n);
+        for (int i = 0; i < n; i++) {
+            double lat = -33.0 - i;
+            pool.submit(() -> {
+                try {
+                    arranque.await();
+                    service.obtenerCalle(lat, -71.0);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    listos.countDown();
+                }
+            });
+        }
+        listos.await();
+        pool.shutdown();
+
+        tiempos.sort(Long::compareTo);
+        for (int i = 1; i < tiempos.size(); i++) {
+            long deltaMs = (tiempos.get(i) - tiempos.get(i - 1)) / 1_000_000;
+            assertThat(deltaMs).isGreaterThanOrEqualTo(1000);
+        }
+    }
 }
