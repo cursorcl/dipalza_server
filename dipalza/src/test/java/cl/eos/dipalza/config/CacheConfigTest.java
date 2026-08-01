@@ -22,7 +22,8 @@ class CacheConfigTest {
                 CacheConfig.CLIENTES_BY_VENDEDOR,
                 CacheConfig.CLIENTES_BY_RUTA,
                 CacheConfig.CLIENTES_BY_ID,
-                CacheConfig.ALL_CLIENTES
+                CacheConfig.ALL_CLIENTES,
+                CacheConfig.GEOCODIFICACION_CALLE
         );
     }
 }
