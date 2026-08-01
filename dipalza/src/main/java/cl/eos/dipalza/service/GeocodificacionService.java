@@ -20,7 +20,7 @@ public class GeocodificacionService {
     // be cached, since both represent a non-answer (unresolved coordinate / failed lookup)
     // rather than a real geocoding result.
     private static final String CALLE_SIN_IDENTIFICAR = "Calle sin identificar";
-    private static final String CALLE_NO_DISPONIBLE = "Calle no disponible";
+    static final String CALLE_NO_DISPONIBLE = "Calle no disponible";
 
     private final RestTemplate restTemplate;
     private final Object nominatimLock = new Object();

@@ -20,7 +20,7 @@ public class DeteccionParadaService {
 
     private static final double RADIO_METROS = 100.0;
     private static final Duration DURACION_MINIMA = Duration.ofMinutes(10);
-    private static final String CALLE_PENDIENTE = "Calle no disponible";
+    private static final String CALLE_PENDIENTE = GeocodificacionService.CALLE_NO_DISPONIBLE;
 
     private final ParadaVendedorGrupoActualRepository grupoActualRepository;
     private final ParadaVendedorRepository paradaVendedorRepository;
