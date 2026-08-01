@@ -10,6 +10,7 @@ import cl.eos.dipalza.repository.ParadaVendedorRepository;
 import cl.eos.dipalza.utils.GeoUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
@@ -34,7 +35,9 @@ public class DeteccionParadaService {
         this.eventPublisher = eventPublisher;
     }
 
-    @Transactional
+    // REQUIRES_NEW: aisla esta transaccion de la de PosicionService.registrarUbicacion para que un fallo aqui
+    // no marque como rollback-only la transaccion del llamador y pierda el registro de posicion del GPS.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void procesarNuevoPunto(VendedorId vendedorId, Vendedor vendedorRef,
                                     double lat, double lon, LocalDateTime fecha) {
         ParadaVendedorGrupoActual grupo = grupoActualRepository.findById(vendedorId).orElse(null);
