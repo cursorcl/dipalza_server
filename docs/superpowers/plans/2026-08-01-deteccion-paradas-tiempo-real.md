@@ -502,10 +502,14 @@ class DeteccionParadaServiceTest {
 
         verify(eventPublisher).publishEvent(new ParadaDetectadaEvent(99L, -33.45, -70.65));
 
-        // se abre un grupo nuevo con el punto entrante como referencia
+        // se abre un grupo nuevo con el punto entrante como referencia.
+        // cerrarGrupo() NUNCA llama a grupoActualRepository (solo persiste la
+        // ParadaVendedor y publica el evento) — el UNICO save() del grupo en
+        // este flujo viene de abrirNuevoGrupo(), asi que se espera 1 sola
+        // invocacion, no 2.
         ArgumentCaptor<ParadaVendedorGrupoActual> grupoCaptor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
-        verify(grupoActualRepository, times(2)).save(grupoCaptor.capture());
-        ParadaVendedorGrupoActual nuevoGrupo = grupoCaptor.getAllValues().get(1);
+        verify(grupoActualRepository, times(1)).save(grupoCaptor.capture());
+        ParadaVendedorGrupoActual nuevoGrupo = grupoCaptor.getValue();
         assertThat(nuevoGrupo.getLatitudReferencia()).isEqualTo(-33.50);
         assertThat(nuevoGrupo.getCantidadPuntos()).isEqualTo(1);
     }
@@ -520,7 +524,8 @@ class DeteccionParadaServiceTest {
         service.procesarNuevoPunto(vendedorId, vendedorRef, -33.50, -70.70, inicio.plusMinutes(5));
 
         verifyNoInteractions(paradaVendedorRepository, eventPublisher);
-        verify(grupoActualRepository, times(2)).save(any()); // igual se abre grupo nuevo
+        // igual se abre grupo nuevo (1 sola invocacion, ver nota en el test anterior)
+        verify(grupoActualRepository, times(1)).save(any());
     }
 
     @Test
