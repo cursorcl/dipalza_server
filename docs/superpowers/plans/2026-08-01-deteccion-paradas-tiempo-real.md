@@ -22,6 +22,877 @@
 - Sin backfill: la detección opera solo hacia adelante desde que se aplique la migración. No se toca `dbo.historial_posicion` existente.
 - No hay FK declarada en BD entre `dbo.historial_posicion`/`dbo.posicion` y `dbo.vendedor` pese a que las entidades JPA sí mapean `@ManyToOne`/`@OneToOne` — las tablas nuevas replican ese mismo patrón (sin FK física) por consistencia con el esquema existente.
 
+## Addendum 2026-08-01: registro progresivo + reintento de geocodificación + test de integración
+
+Las Tasks 1-6 de arriba ya están implementadas, revisadas y comiteadas
+(commits `e3ddc08..2ef34e2`). Tras la revisión final de todo el branch, el
+usuario pidió tres cambios adicionales — **Tasks 7-9** — antes de cerrar la
+rama. Estas tareas **modifican el comportamiento de Task 3** (no lo
+reabren desde cero): reemplazan la semántica "solo se persiste al cerrar
+el grupo" por "se persiste apenas cruza el umbral, y se actualiza en cada
+extensión posterior mientras el vendedor sigue detenido". Las Tasks 1, 2,
+4, 5, 6 (migración, entidades, geocodificación diferida, enganche
+`REQUIRES_NEW`, endpoint de lectura) **no cambian** — Task 7 solo reescribe
+la lógica interna de `DeteccionParadaService` y agrega una columna nueva.
+
+**Nuevas Global Constraints (además de las de arriba, que siguen vigentes salvo donde se indique lo contrario):**
+
+- **Cambio de semántica respecto a la Global Constraint original "Al cerrar
+  un grupo que califica..."**: ya NO se persiste únicamente al cerrar. Se
+  persiste (INSERT) la primera vez que, durante una extensión del grupo,
+  la duración acumulada cruza el umbral de 10 minutos; en cada extensión
+  posterior mientras el grupo sigue abierto y ya calificó, se ACTUALIZA
+  (UPDATE) la fila existente (lat/lon promedio recalculado, `horaFin`).
+  Cerrar el grupo (el vendedor se aleja o cambia el día) ya NO hace ningún
+  trabajo de persistencia nuevo — la fila ya quedó al día por la última
+  extensión.
+- La calle se resuelve (geocodifica) **una sola vez**, en el momento de la
+  primera inserción (cuando se cruza el umbral). Las actualizaciones
+  posteriores de lat/lon/horaFin **no** vuelven a geocodificar ni a
+  publicar un nuevo `ParadaDetectadaEvent`.
+- Activar `@EnableScheduling` en la app revive, como efecto colateral
+  intencional y beneficioso, el cron ya existente pero inerte de
+  `RefreshTokenService.purgeExpiredTokens()` (`0 0 3 * * *`, borra
+  refresh tokens expirados) — confirmado benigno, no requiere ninguna
+  acción adicional.
+- El reintento de geocodificación solo aplica a filas con
+  `calle == GeocodificacionService.CALLE_NO_DISPONIBLE` (fallo transitorio
+  de red/rate-limit) — **no** a `"Calle sin identificar"` (Nominatim
+  respondió pero no hay nombre de calle utilizable para esa coordenada;
+  reintentar es determinísticamente inútil, mismo resultado siempre).
+- El test de integración de la Task 9 sigue el patrón ya establecido por
+  `VendedorRutaServiceIT.java` (`@SpringBootTest @ActiveProfiles({"dev-nosec", "it"})`,
+  contra la BD de prueba real compartida, vendedor `codigo="001" tipo="0"`
+  ya confirmado existente): limpia su propio estado antes Y después
+  (`@BeforeEach`/`@AfterEach`), nunca deja filas huérfanas en
+  `dbo.parada_vendedor`/`dbo.parada_vendedor_grupo_actual`. Como los demás
+  `*IT.java` de este repo, no corre en el build normal (sin plugin
+  Failsafe configurado) — se ejecuta manualmente con
+  `-Dtest=DeteccionParadaServiceIT`.
+
+---
+
+### Task 7: Registro progresivo de la parada — rediseño de `DeteccionParadaService`
+
+**Files:**
+- Modify: `base_de_datos/archive/migration/migration_20260801.sql` (o un nuevo `migration_20260801b.sql` si el primero ya se considera "aplicado" — usar `migration_20260801b.sql` para no editar un script que documentación de despliegue ya pueda haber marcado como ejecutado)
+- Modify: `base_de_datos/deploy_desde_cero/01_esquema_ventas.sql`
+- Modify: `dipalza/src/main/java/cl/eos/dipalza/entity/ParadaVendedorGrupoActual.java`
+- Modify: `dipalza/src/main/java/cl/eos/dipalza/repository/ParadaVendedorRepository.java`
+- Modify: `dipalza/src/main/java/cl/eos/dipalza/service/DeteccionParadaService.java`
+- Modify: `dipalza/src/test/java/cl/eos/dipalza/service/DeteccionParadaServiceTest.java`
+
+**Interfaces:**
+- Consumes: todo lo ya existente de Tasks 2-3 (sin cambios de firma pública en `procesarNuevoPunto`).
+- Produces: `ParadaVendedorRepository.actualizarUbicacionYHoraFin(Long id, double latitud, double longitud, LocalDateTime horaFin)`, que Task 7 misma consume internamente (no hay tareas posteriores que dependan de esto además de Task 9's IT test, que lo ejercita indirectamente vía `procesarNuevoPunto`).
+
+- [ ] **Paso 1: Migración — nueva columna `paradaVendedorId`**
+
+Crear `base_de_datos/archive/migration/migration_20260801b.sql`:
+
+```sql
+-- Agrega la columna paradaVendedorId a dbo.parada_vendedor_grupo_actual:
+-- enlaza el grupo en curso con la fila de dbo.parada_vendedor que ya se
+-- creo para el (una vez que la duracion acumulada cruzo el umbral de 10
+-- min), para poder ACTUALIZARLA en cada extension posterior del grupo en
+-- vez de esperar a que el grupo se cierre. NULL mientras el grupo no ha
+-- calificado todavia.
+--
+-- Ver DeteccionParadaService.extenderGrupo().
+
+BEGIN TRAN;
+
+ALTER TABLE dbo.parada_vendedor_grupo_actual
+    ADD paradaVendedorId bigint NULL;
+
+COMMIT TRAN;
+```
+
+Actualizar `base_de_datos/deploy_desde_cero/01_esquema_ventas.sql`: agregar
+la columna `paradaVendedorId bigint NULL,` directamente en el
+`CREATE TABLE dbo.parada_vendedor_grupo_actual` (después de
+`cantidadPuntos int NOT NULL,`, antes del `CONSTRAINT pk_...`) — el
+deploy-desde-cero no usa `ALTER`, la columna nace ya en el `CREATE TABLE`.
+
+- [ ] **Paso 2: Agregar el campo a la entidad**
+
+En `ParadaVendedorGrupoActual.java`, agregar el campo (con el resto de
+campos `double`/`int`, mismo estilo Lombok, sin anotaciones extra —
+nombre de columna se infiere igual que los demás campos):
+
+```java
+    private Long paradaVendedorId;
+```
+
+- [ ] **Paso 3: Agregar el método de actualización al repositorio**
+
+En `ParadaVendedorRepository.java`, agregar (mismo estilo que
+`actualizarCalle`, junto a él):
+
+```java
+    @Modifying
+    @Transactional
+    @Query("update ParadaVendedor p set p.latitud = :latitud, p.longitud = :longitud, p.horaFin = :horaFin where p.id = :id")
+    void actualizarUbicacionYHoraFin(@Param("id") Long id, @Param("latitud") double latitud,
+                                      @Param("longitud") double longitud, @Param("horaFin") LocalDateTime horaFin);
+```
+
+(Agregar el import `java.time.LocalDateTime` si no está ya.)
+
+- [ ] **Paso 4: Reescribir los tests de `DeteccionParadaServiceTest` (deben fallar primero — el comportamiento cambia)**
+
+Reemplazar el archivo completo por:
+
+```java
+package cl.eos.dipalza.service;
+
+import cl.eos.dipalza.entity.ParadaVendedor;
+import cl.eos.dipalza.entity.ParadaVendedorGrupoActual;
+import cl.eos.dipalza.entity.Vendedor;
+import cl.eos.dipalza.entity.ids.VendedorId;
+import cl.eos.dipalza.event.ParadaDetectadaEvent;
+import cl.eos.dipalza.repository.ParadaVendedorGrupoActualRepository;
+import cl.eos.dipalza.repository.ParadaVendedorRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class DeteccionParadaServiceTest {
+
+    @Mock
+    private ParadaVendedorGrupoActualRepository grupoActualRepository;
+    @Mock
+    private ParadaVendedorRepository paradaVendedorRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    private DeteccionParadaService service;
+
+    private final VendedorId vendedorId = new VendedorId("001", "V");
+    private final Vendedor vendedorRef = new Vendedor(vendedorId);
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        service = new DeteccionParadaService(grupoActualRepository, paradaVendedorRepository, eventPublisher);
+    }
+
+    @Test
+    void sinGrupoPrevio_abreGrupoNuevo() {
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.empty());
+        LocalDateTime fecha = LocalDateTime.of(2026, 8, 1, 10, 0);
+
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45, -70.65, fecha);
+
+        ArgumentCaptor<ParadaVendedorGrupoActual> captor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
+        verify(grupoActualRepository).save(captor.capture());
+        ParadaVendedorGrupoActual grupo = captor.getValue();
+        assertThat(grupo.getLatitudReferencia()).isEqualTo(-33.45);
+        assertThat(grupo.getLongitudReferencia()).isEqualTo(-70.65);
+        assertThat(grupo.getCantidadPuntos()).isEqualTo(1);
+        assertThat(grupo.getSumaLatitud()).isEqualTo(-33.45);
+        assertThat(grupo.getDia()).isEqualTo(fecha.toLocalDate());
+        assertThat(grupo.getParadaVendedorId()).isNull();
+        verifyNoInteractions(paradaVendedorRepository, eventPublisher);
+    }
+
+    @Test
+    void dentroDelRadioMismoDia_duracionAunInsuficiente_extiendeSinCrearParada() {
+        ParadaVendedorGrupoActual grupo = grupoAbierto(LocalDateTime.of(2026, 8, 1, 10, 0), -33.45, -70.65);
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+
+        LocalDateTime fechaNueva = LocalDateTime.of(2026, 8, 1, 10, 5); // 5 min, < 10 min umbral
+        // ~10m de distancia, dentro del radio de 100m
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45009, -70.65, fechaNueva);
+
+        ArgumentCaptor<ParadaVendedorGrupoActual> captor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
+        verify(grupoActualRepository).save(captor.capture());
+        ParadaVendedorGrupoActual actualizado = captor.getValue();
+        assertThat(actualizado.getCantidadPuntos()).isEqualTo(2);
+        assertThat(actualizado.getSumaLatitud()).isEqualTo(-33.45 + -33.45009);
+        assertThat(actualizado.getHoraUltimoPunto()).isEqualTo(fechaNueva);
+        assertThat(actualizado.getLatitudReferencia()).isEqualTo(-33.45); // referencia NO cambia
+        assertThat(actualizado.getParadaVendedorId()).isNull(); // aun no califica
+        verifyNoInteractions(paradaVendedorRepository, eventPublisher);
+    }
+
+    @Test
+    void extensionCruzaElUmbralPorPrimeraVez_creaLaParadaYPublicaEvento() {
+        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(9)); // 9 min acumulados, aun no califica
+        grupo.setSumaLatitud(-33.45 * 2);
+        grupo.setSumaLongitud(-70.65 * 2);
+        grupo.setCantidadPuntos(2);
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+        when(paradaVendedorRepository.save(any(ParadaVendedor.class)))
+                .thenAnswer(inv -> { ParadaVendedor p = inv.getArgument(0); p.setId(50L); return p; });
+
+        LocalDateTime fechaCruceUmbral = inicio.plusMinutes(11); // 11 min totales, cruza el umbral de 10
+        // sigue dentro del radio (~10m)
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45009, -70.65, fechaCruceUmbral);
+
+        ArgumentCaptor<ParadaVendedor> paradaCaptor = ArgumentCaptor.forClass(ParadaVendedor.class);
+        verify(paradaVendedorRepository).save(paradaCaptor.capture());
+        ParadaVendedor creada = paradaCaptor.getValue();
+        assertThat(creada.getHoraInicio()).isEqualTo(inicio);
+        assertThat(creada.getHoraFin()).isEqualTo(fechaCruceUmbral);
+        assertThat(creada.getCalle()).isEqualTo("Calle no disponible");
+        // promedio de 3 puntos: -33.45, -33.45, -33.45009
+        assertThat(creada.getLatitud()).isEqualTo((-33.45 * 2 + -33.45009) / 3);
+
+        verify(eventPublisher).publishEvent(new ParadaDetectadaEvent(50L, creada.getLatitud(), creada.getLongitud()));
+
+        ArgumentCaptor<ParadaVendedorGrupoActual> grupoCaptor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
+        verify(grupoActualRepository).save(grupoCaptor.capture());
+        assertThat(grupoCaptor.getValue().getParadaVendedorId()).isEqualTo(50L);
+
+        verify(paradaVendedorRepository, never()).actualizarUbicacionYHoraFin(any(), anyDouble(), anyDouble(), any());
+    }
+
+    @Test
+    void extensionConGrupoYaCalificado_actualizaLaParadaExistente_sinCrearNiPublicarDeNuevo() {
+        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(11));
+        grupo.setSumaLatitud(-33.45 * 3);
+        grupo.setSumaLongitud(-70.65 * 3);
+        grupo.setCantidadPuntos(3);
+        grupo.setParadaVendedorId(50L); // ya califico antes, la parada 50 ya existe
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+
+        LocalDateTime fechaNueva = inicio.plusMinutes(15);
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45009, -70.65, fechaNueva);
+
+        double latPromedioEsperado = (-33.45 * 3 + -33.45009) / 4;
+        verify(paradaVendedorRepository).actualizarUbicacionYHoraFin(
+                eq(50L), eq(latPromedioEsperado), anyDouble(), eq(fechaNueva));
+        verify(paradaVendedorRepository, never()).save(any(ParadaVendedor.class));
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void seAlejaJustoSobreElRadio_102m_conGrupoYaCalificado_soloAbreGrupoNuevo() {
+        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(12));
+        grupo.setParadaVendedorId(77L); // ya califico y fue actualizado durante el trayecto
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+
+        // -33.45092 queda a ~102.3m de (-33.45, -70.65) — justo por encima del radio de 100m
+        LocalDateTime fechaLejos = inicio.plusMinutes(13);
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45092, -70.65, fechaLejos);
+
+        // el grupo que se cierra ya estaba al dia (ultima extension lo actualizo) -- cerrar no hace
+        // NINGUN trabajo de persistencia nuevo sobre la parada 77
+        verifyNoInteractions(paradaVendedorRepository, eventPublisher);
+        ArgumentCaptor<ParadaVendedorGrupoActual> grupoCaptor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
+        verify(grupoActualRepository).save(grupoCaptor.capture());
+        ParadaVendedorGrupoActual nuevoGrupo = grupoCaptor.getValue();
+        assertThat(nuevoGrupo.getLatitudReferencia()).isEqualTo(-33.45092);
+        assertThat(nuevoGrupo.getParadaVendedorId()).isNull(); // grupo nuevo, aun no califica
+    }
+
+    @Test
+    void seAlejaConGrupoNuncaCalifico_descartaSinPersistir() {
+        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(4)); // < 10 min, nunca califico
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.50, -70.70, inicio.plusMinutes(5));
+
+        verifyNoInteractions(paradaVendedorRepository, eventPublisher);
+        verify(grupoActualRepository, times(1)).save(any());
+    }
+
+    @Test
+    void cambioDeDiaCalendario_conGrupoQueCalificoAyer_soloAbreGrupoNuevoHoy() {
+        LocalDateTime inicioAyer = LocalDateTime.of(2026, 7, 31, 23, 50);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicioAyer, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicioAyer.plusMinutes(11)); // califico y ya fue persistido/actualizado ayer
+        grupo.setParadaVendedorId(1L);
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+
+        LocalDateTime hoyMismaUbicacion = LocalDateTime.of(2026, 8, 1, 0, 5); // MISMA lat/lon, otro dia
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45, -70.65, hoyMismaUbicacion);
+
+        // el cambio de dia fuerza abrir grupo nuevo; la parada de ayer (id 1) no necesita ningun
+        // trabajo adicional porque ya quedo al dia por la ultima extension de ayer
+        verifyNoInteractions(paradaVendedorRepository, eventPublisher);
+        ArgumentCaptor<ParadaVendedorGrupoActual> grupoCaptor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
+        verify(grupoActualRepository).save(grupoCaptor.capture());
+        assertThat(grupoCaptor.getValue().getDia()).isEqualTo(LocalDateTime.of(2026, 8, 1, 0, 5).toLocalDate());
+    }
+
+    @Test
+    void grupoAbiertoUnSoloPunto_alAlejarseInmediatamenteNoCalifica() {
+        LocalDateTime fecha = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(fecha, -33.45, -70.65); // 1 solo punto, duracion 0
+
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.50, -70.70, fecha.plusSeconds(30));
+
+        verifyNoInteractions(paradaVendedorRepository, eventPublisher);
+    }
+
+    private ParadaVendedorGrupoActual grupoAbierto(LocalDateTime horaInicio, double lat, double lon) {
+        ParadaVendedorGrupoActual grupo = new ParadaVendedorGrupoActual();
+        grupo.setId(vendedorId);
+        grupo.setVendedor(vendedorRef);
+        grupo.setDia(horaInicio.toLocalDate());
+        grupo.setLatitudReferencia(lat);
+        grupo.setLongitudReferencia(lon);
+        grupo.setHoraInicio(horaInicio);
+        grupo.setHoraUltimoPunto(horaInicio);
+        grupo.setSumaLatitud(lat);
+        grupo.setSumaLongitud(lon);
+        grupo.setCantidadPuntos(1);
+        return grupo;
+    }
+}
+```
+
+- [ ] **Paso 5: Ejecutar los tests y verificar que fallan**
+
+Run: `cd dipalza && ./mvnw test -Dtest=DeteccionParadaServiceTest -Dfrontend.skip=true`
+Expected: FAIL (compilation error — `getParadaVendedorId()`/`setParadaVendedorId()`/`actualizarUbicacionYHoraFin` no existen todavía si Pasos 2-3 no se hicieron antes; si ya se hicieron, FAIL por comportamiento — el servicio viejo no crea la parada al cruzar el umbral durante una extensión, solo al cerrar)
+
+- [ ] **Paso 6: Reescribir `DeteccionParadaService`**
+
+```java
+package cl.eos.dipalza.service;
+
+import cl.eos.dipalza.entity.ParadaVendedor;
+import cl.eos.dipalza.entity.ParadaVendedorGrupoActual;
+import cl.eos.dipalza.entity.Vendedor;
+import cl.eos.dipalza.entity.ids.VendedorId;
+import cl.eos.dipalza.event.ParadaDetectadaEvent;
+import cl.eos.dipalza.repository.ParadaVendedorGrupoActualRepository;
+import cl.eos.dipalza.repository.ParadaVendedorRepository;
+import cl.eos.dipalza.utils.GeoUtils;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+
+@Service
+public class DeteccionParadaService {
+
+    // Estos valores deben mantenerse en sincronia manual con los parametros por defecto de
+    // detectarParadas() en dipalza_web_client/src/app/mapa/detectar-paradas.ts (otro repo, sin
+    // verificacion por el compilador).
+    private static final double RADIO_METROS = 100.0;
+    private static final Duration DURACION_MINIMA = Duration.ofMinutes(10);
+    private static final String CALLE_PENDIENTE = GeocodificacionService.CALLE_NO_DISPONIBLE;
+
+    private final ParadaVendedorGrupoActualRepository grupoActualRepository;
+    private final ParadaVendedorRepository paradaVendedorRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    public DeteccionParadaService(ParadaVendedorGrupoActualRepository grupoActualRepository,
+                                   ParadaVendedorRepository paradaVendedorRepository,
+                                   ApplicationEventPublisher eventPublisher) {
+        this.grupoActualRepository = grupoActualRepository;
+        this.paradaVendedorRepository = paradaVendedorRepository;
+        this.eventPublisher = eventPublisher;
+    }
+
+    // REQUIRES_NEW: aisla esta transaccion de la de PosicionService.registrarUbicacion para que un fallo aqui
+    // no marque como rollback-only la transaccion del llamador y pierda el registro de posicion del GPS.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void procesarNuevoPunto(VendedorId vendedorId, Vendedor vendedorRef,
+                                    double lat, double lon, LocalDateTime fecha) {
+        ParadaVendedorGrupoActual grupo = grupoActualRepository.findById(vendedorId).orElse(null);
+
+        if (grupo == null) {
+            abrirNuevoGrupo(vendedorId, vendedorRef, lat, lon, fecha);
+            return;
+        }
+
+        boolean cambioDeDia = !grupo.getDia().equals(fecha.toLocalDate());
+        boolean seAleja = !cambioDeDia && GeoUtils.distanciaMetros(
+                grupo.getLatitudReferencia(), grupo.getLongitudReferencia(), lat, lon) > RADIO_METROS;
+
+        if (cambioDeDia || seAleja) {
+            // El grupo anterior ya quedo persistido/actualizado (si califico) por extensiones
+            // previas dentro de extenderGrupo() -- cerrar no requiere ningun trabajo adicional.
+            abrirNuevoGrupo(vendedorId, vendedorRef, lat, lon, fecha);
+        } else {
+            extenderGrupo(grupo, vendedorRef, lat, lon, fecha);
+        }
+    }
+
+    private void abrirNuevoGrupo(VendedorId vendedorId, Vendedor vendedorRef,
+                                  double lat, double lon, LocalDateTime fecha) {
+        ParadaVendedorGrupoActual nuevo = new ParadaVendedorGrupoActual();
+        nuevo.setId(vendedorId);
+        nuevo.setVendedor(vendedorRef);
+        nuevo.setDia(fecha.toLocalDate());
+        nuevo.setLatitudReferencia(lat);
+        nuevo.setLongitudReferencia(lon);
+        nuevo.setHoraInicio(fecha);
+        nuevo.setHoraUltimoPunto(fecha);
+        nuevo.setSumaLatitud(lat);
+        nuevo.setSumaLongitud(lon);
+        nuevo.setCantidadPuntos(1);
+        nuevo.setParadaVendedorId(null);
+        grupoActualRepository.save(nuevo);
+    }
+
+    private void extenderGrupo(ParadaVendedorGrupoActual grupo, Vendedor vendedorRef,
+                                double lat, double lon, LocalDateTime fecha) {
+        grupo.setHoraUltimoPunto(fecha);
+        grupo.setSumaLatitud(grupo.getSumaLatitud() + lat);
+        grupo.setSumaLongitud(grupo.getSumaLongitud() + lon);
+        grupo.setCantidadPuntos(grupo.getCantidadPuntos() + 1);
+
+        Duration duracion = Duration.between(grupo.getHoraInicio(), grupo.getHoraUltimoPunto());
+        if (duracion.compareTo(DURACION_MINIMA) >= 0) {
+            double latPromedio = grupo.getSumaLatitud() / grupo.getCantidadPuntos();
+            double lonPromedio = grupo.getSumaLongitud() / grupo.getCantidadPuntos();
+
+            if (grupo.getParadaVendedorId() == null) {
+                ParadaVendedor parada = new ParadaVendedor();
+                parada.setVendedor(vendedorRef);
+                parada.setLatitud(latPromedio);
+                parada.setLongitud(lonPromedio);
+                parada.setHoraInicio(grupo.getHoraInicio());
+                parada.setHoraFin(grupo.getHoraUltimoPunto());
+                parada.setCalle(CALLE_PENDIENTE);
+                parada = paradaVendedorRepository.save(parada);
+                grupo.setParadaVendedorId(parada.getId());
+                eventPublisher.publishEvent(new ParadaDetectadaEvent(parada.getId(), latPromedio, lonPromedio));
+            } else {
+                paradaVendedorRepository.actualizarUbicacionYHoraFin(
+                        grupo.getParadaVendedorId(), latPromedio, lonPromedio, grupo.getHoraUltimoPunto());
+            }
+        }
+        grupoActualRepository.save(grupo);
+    }
+}
+```
+
+- [ ] **Paso 7: Ejecutar los tests y verificar que pasan**
+
+Run: `cd dipalza && ./mvnw test -Dtest=DeteccionParadaServiceTest -Dfrontend.skip=true`
+Expected: PASS (9/9)
+
+- [ ] **Paso 8: Ejecutar la suite completa**
+
+Run: `cd dipalza && ./mvnw test -Dfrontend.skip=true`
+Expected: PASS (todos, incluyendo `PosicionServiceTest` sin cambios de comportamiento en su try/catch — sigue siendo válido, `procesarNuevoPunto` mantiene su firma pública)
+
+- [ ] **Paso 9: Commit**
+
+```bash
+git add base_de_datos/archive/migration/migration_20260801b.sql \
+        base_de_datos/deploy_desde_cero/01_esquema_ventas.sql \
+        dipalza/src/main/java/cl/eos/dipalza/entity/ParadaVendedorGrupoActual.java \
+        dipalza/src/main/java/cl/eos/dipalza/repository/ParadaVendedorRepository.java \
+        dipalza/src/main/java/cl/eos/dipalza/service/DeteccionParadaService.java \
+        dipalza/src/test/java/cl/eos/dipalza/service/DeteccionParadaServiceTest.java
+git commit -m "feat: registra y actualiza la parada progresivamente, no solo al cerrar el grupo"
+```
+
+---
+
+### Task 8: Reintento de geocodificación pendiente
+
+**Files:**
+- Create: `dipalza/src/main/java/cl/eos/dipalza/config/SchedulingConfig.java`
+- Modify: `dipalza/src/main/java/cl/eos/dipalza/service/GeocodificacionService.java`
+- Modify: `dipalza/src/main/java/cl/eos/dipalza/repository/ParadaVendedorRepository.java`
+- Create: `dipalza/src/main/java/cl/eos/dipalza/service/GeocodificacionRetryService.java`
+- Test: `dipalza/src/test/java/cl/eos/dipalza/service/GeocodificacionRetryServiceTest.java`
+
+**Interfaces:**
+- Consumes: `GeocodificacionService.obtenerCalle` (existente), `GeocodificacionService.CALLE_NO_DISPONIBLE` (ya package-private desde Task 4), `ParadaVendedorRepository.actualizarCalle` (existente, Task 2).
+- Produces: nada que otras tasks consuman — es la última pieza funcional del backend.
+
+- [ ] **Paso 1: Habilitar scheduling**
+
+Crear `dipalza/src/main/java/cl/eos/dipalza/config/SchedulingConfig.java`:
+
+```java
+package cl.eos.dipalza.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+// Habilita @Scheduled en toda la app. Efecto colateral confirmado benigno: revive
+// RefreshTokenService.purgeExpiredTokens() (cron "0 0 3 * * *", borra refresh tokens
+// expirados), que existia en el codigo pero nunca corria porque @EnableScheduling
+// no estaba presente en ningun lado de la aplicacion.
+@Configuration
+@EnableScheduling
+public class SchedulingConfig {
+}
+```
+
+- [ ] **Paso 2: Exponer `CALLE_SIN_IDENTIFICAR`... NO — decisión explícita: NO se expone.**
+
+Repasar: el reintento solo aplica al sentinel `CALLE_NO_DISPONIBLE` (ya
+package-private desde la Task 4). `CALLE_SIN_IDENTIFICAR` permanece
+`private` en `GeocodificacionService` — no se toca este archivo en esta
+task más allá de lo ya hecho en la Task 4. (Este paso es una nota, no una
+acción de código.)
+
+- [ ] **Paso 3: Agregar el método de búsqueda de pendientes al repositorio**
+
+En `ParadaVendedorRepository.java`, agregar (junto a los métodos
+existentes; usa `Pageable` de Spring Data para acotar el tamaño del lote):
+
+```java
+    List<ParadaVendedor> findByCalle(String calle, org.springframework.data.domain.Pageable pageable);
+```
+
+- [ ] **Paso 4: Escribir el test de `GeocodificacionRetryService` (debe fallar primero)**
+
+```java
+package cl.eos.dipalza.service;
+
+import cl.eos.dipalza.repository.ParadaVendedorRepository;
+import cl.eos.dipalza.entity.ParadaVendedor;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
+
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class GeocodificacionRetryServiceTest {
+
+    @Mock
+    private ParadaVendedorRepository paradaVendedorRepository;
+    @Mock
+    private GeocodificacionService geocodificacionService;
+
+    @Test
+    void reintentarGeocodificacionPendiente_resuelveYActualizaLasQueTuvieronExito() {
+        ParadaVendedor p1 = new ParadaVendedor();
+        p1.setId(1L);
+        p1.setLatitud(-33.45);
+        p1.setLongitud(-70.65);
+        when(paradaVendedorRepository.findByCalle(eq("Calle no disponible"), any(Pageable.class)))
+                .thenReturn(List.of(p1));
+        when(geocodificacionService.obtenerCalle(-33.45, -70.65)).thenReturn("Av. Providencia");
+
+        GeocodificacionRetryService service =
+                new GeocodificacionRetryService(paradaVendedorRepository, geocodificacionService);
+        service.reintentarGeocodificacionPendiente();
+
+        verify(paradaVendedorRepository).actualizarCalle(1L, "Av. Providencia");
+    }
+
+    @Test
+    void reintentarGeocodificacionPendiente_siSigueFallando_noActualiza() {
+        ParadaVendedor p1 = new ParadaVendedor();
+        p1.setId(1L);
+        p1.setLatitud(-33.45);
+        p1.setLongitud(-70.65);
+        when(paradaVendedorRepository.findByCalle(eq("Calle no disponible"), any(Pageable.class)))
+                .thenReturn(List.of(p1));
+        when(geocodificacionService.obtenerCalle(-33.45, -70.65)).thenReturn("Calle no disponible");
+
+        GeocodificacionRetryService service =
+                new GeocodificacionRetryService(paradaVendedorRepository, geocodificacionService);
+        service.reintentarGeocodificacionPendiente();
+
+        verify(paradaVendedorRepository, never()).actualizarCalle(any(), any());
+    }
+
+    @Test
+    void reintentarGeocodificacionPendiente_sinPendientes_noHaceNada() {
+        when(paradaVendedorRepository.findByCalle(eq("Calle no disponible"), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        GeocodificacionRetryService service =
+                new GeocodificacionRetryService(paradaVendedorRepository, geocodificacionService);
+        service.reintentarGeocodificacionPendiente();
+
+        verifyNoInteractions(geocodificacionService);
+        verify(paradaVendedorRepository, never()).actualizarCalle(any(), any());
+    }
+}
+```
+
+- [ ] **Paso 5: Ejecutar y verificar que falla**
+
+Run: `cd dipalza && ./mvnw test -Dtest=GeocodificacionRetryServiceTest -Dfrontend.skip=true`
+Expected: FAIL (compilation error, `GeocodificacionRetryService` no existe)
+
+- [ ] **Paso 6: Implementar `GeocodificacionRetryService`**
+
+```java
+package cl.eos.dipalza.service;
+
+import cl.eos.dipalza.entity.ParadaVendedor;
+import cl.eos.dipalza.repository.ParadaVendedorRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class GeocodificacionRetryService {
+
+    private static final Logger log = LoggerFactory.getLogger(GeocodificacionRetryService.class);
+    private static final int TAMANO_LOTE = 20;
+    private static final long QUINCE_MINUTOS_MS = 15 * 60 * 1000L;
+
+    private final ParadaVendedorRepository paradaVendedorRepository;
+    private final GeocodificacionService geocodificacionService;
+
+    public GeocodificacionRetryService(ParadaVendedorRepository paradaVendedorRepository,
+                                        GeocodificacionService geocodificacionService) {
+        this.paradaVendedorRepository = paradaVendedorRepository;
+        this.geocodificacionService = geocodificacionService;
+    }
+
+    // Reintenta resolver la calle de paradas cuya geocodificacion fallo transitoriamente
+    // (sentinel CALLE_NO_DISPONIBLE, tipicamente por rate-limit o caida de red de Nominatim).
+    // No reintenta CALLE_SIN_IDENTIFICAR: ese sentinel significa que Nominatim SI respondio
+    // pero no hay nombre de calle utilizable para esa coordenada -- reintentar es
+    // deterministicamente inutil.
+    @Scheduled(fixedDelay = QUINCE_MINUTOS_MS)
+    public void reintentarGeocodificacionPendiente() {
+        List<ParadaVendedor> pendientes = paradaVendedorRepository.findByCalle(
+                GeocodificacionService.CALLE_NO_DISPONIBLE, PageRequest.of(0, TAMANO_LOTE));
+
+        for (ParadaVendedor parada : pendientes) {
+            String calle = geocodificacionService.obtenerCalle(parada.getLatitud(), parada.getLongitud());
+            if (!GeocodificacionService.CALLE_NO_DISPONIBLE.equals(calle)) {
+                paradaVendedorRepository.actualizarCalle(parada.getId(), calle);
+                log.info("Geocodificacion reintentada con exito para parada {}", parada.getId());
+            }
+        }
+    }
+}
+```
+
+- [ ] **Paso 7: Ejecutar y verificar que pasa**
+
+Run: `cd dipalza && ./mvnw test -Dtest=GeocodificacionRetryServiceTest -Dfrontend.skip=true`
+Expected: PASS (3/3)
+
+- [ ] **Paso 8: Ejecutar la suite completa (confirma que `@EnableScheduling` no rompe nada, incluido el contexto de `@SpringBootTest`)**
+
+Run: `cd dipalza && ./mvnw test -Dfrontend.skip=true`
+Expected: PASS
+
+- [ ] **Paso 9: Commit**
+
+```bash
+git add dipalza/src/main/java/cl/eos/dipalza/config/SchedulingConfig.java \
+        dipalza/src/main/java/cl/eos/dipalza/repository/ParadaVendedorRepository.java \
+        dipalza/src/main/java/cl/eos/dipalza/service/GeocodificacionRetryService.java \
+        dipalza/src/test/java/cl/eos/dipalza/service/GeocodificacionRetryServiceTest.java
+git commit -m "feat: reintenta geocodificacion de paradas que fallaron transitoriamente"
+```
+
+---
+
+### Task 9: Test de integración — `DeteccionParadaServiceIT`
+
+**Files:**
+- Create: `dipalza/src/test/java/cl/eos/dipalza/service/DeteccionParadaServiceIT.java`
+
+**Interfaces:**
+- Consumes: `DeteccionParadaService.procesarNuevoPunto` (Task 7), `ParadaVendedorRepository`, `ParadaVendedorGrupoActualRepository`, `VendedorRepository` (todos ya existentes).
+
+Este test corre contra la BD de prueba real compartida, con un
+`ApplicationContext` de Spring completo (no mocks) — verifica lo que
+ningún test Mockito puede probar: que `Propagation.REQUIRES_NEW` funciona
+correctamente contra un `EntityManager`/proxy Hibernate real, y que el
+listener asíncrono de geocodificación (`@Async` + `AFTER_COMMIT`)
+efectivamente resuelve la calle después de que la transacción de
+detección comitea.
+
+- [ ] **Paso 1: Escribir el test**
+
+```java
+package cl.eos.dipalza.service;
+
+import cl.eos.dipalza.entity.Vendedor;
+import cl.eos.dipalza.entity.ids.VendedorId;
+import cl.eos.dipalza.repository.ParadaVendedorGrupoActualRepository;
+import cl.eos.dipalza.repository.ParadaVendedorRepository;
+import cl.eos.dipalza.repository.VendedorRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
+/**
+ * Prueba de integración de {@link DeteccionParadaService#procesarNuevoPunto}
+ * contra la base de datos de prueba real, con un {@code ApplicationContext} de
+ * Spring completo (no mocks). Verifica dos cosas que
+ * {@code DeteccionParadaServiceTest} (Mockito puro) no puede probar:
+ *
+ * <p>1. Que {@code @Transactional(propagation = REQUIRES_NEW)} realmente aisla la
+ * transacción de detección de una transacción externa simulada, usando un
+ * {@code EntityManager}/proxy Hibernate real para {@code Vendedor} (no un mock) —
+ * el mismo tipo de riesgo que {@link VendedorRutaServiceIT} documenta para otro
+ * caso de proxies LAZY reales.</p>
+ *
+ * <p>2. Que el listener asíncrono de geocodificación ({@code @Async} +
+ * {@code @TransactionalEventListener(AFTER_COMMIT)}) efectivamente resuelve la
+ * calle real después de que la transacción de detección comitea — hace una
+ * llamada real a Nominatim (red pública), por lo que usa
+ * {@code Awaitility.await()} en vez de un sleep fijo.</p>
+ *
+ * <p>Usa vendedor código "001" tipo "0" (mismo vendedor confirmado existente que
+ * usa {@link VendedorRutaServiceIT}). Limpia su propio estado antes y después
+ * para no dejar filas huérfanas en {@code dbo.parada_vendedor}/
+ * {@code dbo.parada_vendedor_grupo_actual} en la BD compartida.</p>
+ */
+@SpringBootTest
+@ActiveProfiles({"dev-nosec", "it"})
+class DeteccionParadaServiceIT {
+
+    private static final String CODIGO_VENDEDOR = "001";
+    private static final String TIPO_VENDEDOR = "0";
+    private static final VendedorId VENDEDOR_ID = new VendedorId(CODIGO_VENDEDOR, TIPO_VENDEDOR);
+
+    @Autowired
+    private DeteccionParadaService deteccionParadaService;
+    @Autowired
+    private ParadaVendedorRepository paradaVendedorRepository;
+    @Autowired
+    private ParadaVendedorGrupoActualRepository grupoActualRepository;
+    @Autowired
+    private VendedorRepository vendedorRepository;
+
+    private Vendedor vendedor;
+
+    @BeforeEach
+    void prepararEstado() {
+        limpiar();
+        vendedor = vendedorRepository.findById(VENDEDOR_ID).orElseThrow();
+    }
+
+    @AfterEach
+    void limpiar() {
+        grupoActualRepository.deleteById(VENDEDOR_ID);
+        // Borra cualquier parada creada por corridas previas de este test, identificable por
+        // su lat/lon fija de prueba.
+        paradaVendedorRepository.findAll((root, query, cb) ->
+                cb.and(cb.equal(root.get("latitud"), -33.45), cb.equal(root.get("longitud"), -70.65)))
+                .forEach(p -> paradaVendedorRepository.deleteById(p.getId()));
+    }
+
+    @Test
+    void procesarNuevoPunto_cruzaElUmbralYLuegoSeActualiza_contraBdYProxyHibernateReales() {
+        LocalDateTime inicio = LocalDateTime.of(LocalDate.now(), java.time.LocalTime.of(9, 0));
+
+        deteccionParadaService.procesarNuevoPunto(VENDEDOR_ID, vendedor, -33.45, -70.65, inicio);
+
+        Optional<cl.eos.dipalza.entity.ParadaVendedorGrupoActual> grupoTrasAbrir =
+                grupoActualRepository.findById(VENDEDOR_ID);
+        assertThat(grupoTrasAbrir).isPresent();
+        assertThat(grupoTrasAbrir.get().getParadaVendedorId()).isNull();
+
+        // Segundo punto, 11 minutos despues, mismo lugar -- cruza el umbral de 10 min
+        deteccionParadaService.procesarNuevoPunto(VENDEDOR_ID, vendedor, -33.45, -70.65, inicio.plusMinutes(11));
+
+        Long paradaId = grupoActualRepository.findById(VENDEDOR_ID).orElseThrow().getParadaVendedorId();
+        assertThat(paradaId).isNotNull();
+
+        List<cl.eos.dipalza.entity.ParadaVendedor> paradas = paradaVendedorRepository.findAllById(List.of(paradaId));
+        assertThat(paradas).hasSize(1);
+        assertThat(paradas.get(0).getHoraFin()).isEqualTo(inicio.plusMinutes(11));
+
+        // Tercer punto, 15 minutos despues -- actualiza la MISMA fila (no crea una segunda)
+        deteccionParadaService.procesarNuevoPunto(VENDEDOR_ID, vendedor, -33.45, -70.65, inicio.plusMinutes(15));
+
+        List<cl.eos.dipalza.entity.ParadaVendedor> paradasTrasActualizar =
+                paradaVendedorRepository.findAllById(List.of(paradaId));
+        assertThat(paradasTrasActualizar).hasSize(1);
+        assertThat(paradasTrasActualizar.get(0).getHoraFin()).isEqualTo(inicio.plusMinutes(15));
+
+        // La geocodificacion asincrona (AFTER_COMMIT + @Async, llamada real a Nominatim) resuelve
+        // la calle en algun momento tras el commit de la primera transaccion que creo la parada.
+        await().atMost(Duration.ofSeconds(10)).pollInterval(Duration.ofMillis(300)).untilAsserted(() -> {
+            String calle = paradaVendedorRepository.findAllById(List.of(paradaId)).get(0).getCalle();
+            assertThat(calle).isNotEqualTo("Calle no disponible");
+        });
+    }
+}
+```
+
+- [ ] **Paso 2: Verificar si `Awaitility` está disponible como dependencia**
+
+Ejecutar `grep -r "awaitility" dipalza/pom.xml`. Si NO aparece, agregar la
+dependencia (scope `test`) al `pom.xml`, en el bloque de dependencias de
+test junto a `spring-boot-starter-test`:
+
+```xml
+<dependency>
+    <groupId>org.awaitility</groupId>
+    <artifactId>awaitility</artifactId>
+    <scope>test</scope>
+</dependency>
+```
+
+(`spring-boot-starter-parent` gestiona la versión vía BOM; si el build
+falla por versión no gestionada, fijar version `4.2.2` explícitamente.)
+
+- [ ] **Paso 3: Ejecutar el test manualmente (no corre en el build normal, igual que los demás `*IT.java`)**
+
+Run: `cd dipalza && ./mvnw test -Dtest=DeteccionParadaServiceIT -Dfrontend.skip=true`
+Expected: PASS — si falla por vendedor "001"/"0" no encontrado en la BD de
+prueba real, usar el mismo vendedor que confirma `VendedorRutaServiceIT`
+o, si ese vendedor ya no existe, escalar (BLOCKED) en vez de inventar un
+código de vendedor al azar.
+
+- [ ] **Paso 4: Ejecutar la suite normal completa (sin el IT) y confirmar que sigue verde**
+
+Run: `cd dipalza && ./mvnw test -Dfrontend.skip=true`
+Expected: PASS (el `*IT.java` nuevo no se incluye automáticamente, igual que `VendedorRutaServiceIT`/`FacturacionServiceIT`)
+
+- [ ] **Paso 5: Commit**
+
+```bash
+git add dipalza/src/test/java/cl/eos/dipalza/service/DeteccionParadaServiceIT.java dipalza/pom.xml
+git commit -m "test: agrega test de integracion para DeteccionParadaService (REQUIRES_NEW + geocodificacion async)"
+```
+
 ---
 
 ### Task 1: Migración SQL — tablas nuevas
