@@ -15,11 +15,12 @@ public class CacheConfig {
     public static final String CLIENTES_BY_RUTA = "clientesByRuta";
     public static final String CLIENTES_BY_ID = "clientesById";
     public static final String ALL_CLIENTES = "allClientes";
+    public static final String GEOCODIFICACION_CALLE = "geocodificacionCalle";
 
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
-                CLIENTES_BY_VENDEDOR, CLIENTES_BY_RUTA, CLIENTES_BY_ID, ALL_CLIENTES
+                CLIENTES_BY_VENDEDOR, CLIENTES_BY_RUTA, CLIENTES_BY_ID, ALL_CLIENTES, GEOCODIFICACION_CALLE
         );
         cacheManager.setCaffeine(Caffeine.newBuilder().maximumSize(500));
         return cacheManager;
