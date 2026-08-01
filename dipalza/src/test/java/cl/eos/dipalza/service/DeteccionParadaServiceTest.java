@@ -117,6 +117,42 @@ class DeteccionParadaServiceTest {
     }
 
     @Test
+    void seAlejaJustoSobreElRadio_102m_cierraYPersisteComoParada() {
+        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(12)); // duracion suficiente
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+        when(paradaVendedorRepository.save(any(ParadaVendedor.class)))
+                .thenAnswer(inv -> { ParadaVendedor p = inv.getArgument(0); p.setId(100L); return p; });
+
+        // -33.45092 queda a ~102.3m de (-33.45, -70.65) segun GeoUtils.distanciaMetros (Haversine,
+        // desplazamiento puro en latitud) — justo por encima del radio de 100m. Confirma que
+        // '> 100m' SI dispara el cierre del grupo (no solo distancias muy por fuera, como ~7km).
+        LocalDateTime fechaLejos = inicio.plusMinutes(13);
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45092, -70.65, fechaLejos);
+
+        verify(paradaVendedorRepository).save(any(ParadaVendedor.class));
+        verify(eventPublisher).publishEvent(any(ParadaDetectadaEvent.class));
+    }
+
+    @Test
+    void duracionExactamenteDiezMinutos_calificaYPersisteComoParada() {
+        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(10)); // duracion EXACTA de 10 min (limite inclusivo)
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+        when(paradaVendedorRepository.save(any(ParadaVendedor.class)))
+                .thenAnswer(inv -> { ParadaVendedor p = inv.getArgument(0); p.setId(101L); return p; });
+
+        // cerrarGrupo() solo descarta si duracion.compareTo(DURACION_MINIMA) < 0, es decir
+        // ESTRICTAMENTE menor a 10 min; exactamente 10 min debe calificar.
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.50, -70.70, inicio.plusMinutes(11)); // >100m
+
+        verify(paradaVendedorRepository).save(any(ParadaVendedor.class));
+        verify(eventPublisher).publishEvent(any(ParadaDetectadaEvent.class));
+    }
+
+    @Test
     void seAlejaPeroDuracionInsuficiente_descartaSinPersistir() {
         LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
         ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);

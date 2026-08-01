@@ -19,6 +19,9 @@ import java.time.LocalDateTime;
 @Service
 public class DeteccionParadaService {
 
+    // Estos valores deben mantenerse en sincronia manual con los parametros por defecto de
+    // detectarParadas() en dipalza_web_client/src/app/mapa/detectar-paradas.ts (otro repo, sin
+    // verificacion por el compilador).
     private static final double RADIO_METROS = 100.0;
     private static final Duration DURACION_MINIMA = Duration.ofMinutes(10);
     private static final String CALLE_PENDIENTE = GeocodificacionService.CALLE_NO_DISPONIBLE;

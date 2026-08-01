@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class DeteccionService {
@@ -22,6 +23,6 @@ public class DeteccionService {
     @Transactional(readOnly = true)
     public List<ParadaVendedorDTO> buscarHistorico(PosicionFilter filter) {
         return paradaVendedorRepository.findAll(ParadaVendedorSpecifications.conFiltros(filter))
-                .stream().map(ParadaVendedorMapper::toDTO).toList();
+                .stream().map(ParadaVendedorMapper::toDTO).filter(Objects::nonNull).toList();
     }
 }

@@ -11,6 +11,9 @@ import java.util.concurrent.Executor;
 @EnableAsync
 public class AsyncConfig {
 
+    // Definir este bean desactiva el applicationTaskExecutor por defecto autoconfigurado por Spring Boot;
+    // cualquier @Async futuro sin executor explicito en otra parte de la app caeria silenciosamente en
+    // este pool pequeno y limitado por el throttling de Nominatim, salvo que especifique su propio executor.
     @Bean(name = "deteccionParadaExecutor")
     public Executor deteccionParadaExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
