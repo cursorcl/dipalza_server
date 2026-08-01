@@ -16,6 +16,7 @@ public class GeocodificacionService {
     private static final String NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=jsonv2";
     private static final long INTERVALO_MINIMO_MS = 1100;
     private static final String CALLE_SIN_IDENTIFICAR = "Calle sin identificar";
+    // IMPORTANT: The SpEL expression in @Cacheable.unless must stay in sync with this value
     private static final String CALLE_NO_DISPONIBLE = "Calle no disponible";
 
     private final RestTemplate restTemplate;
@@ -26,7 +27,7 @@ public class GeocodificacionService {
         this.restTemplate = restTemplate;
     }
 
-    @Cacheable(value = CacheConfig.GEOCODIFICACION_CALLE, key = "#lat + ',' + #lon")
+    @Cacheable(value = CacheConfig.GEOCODIFICACION_CALLE, key = "#lat + ',' + #lon", unless = "#result == 'Calle no disponible'")
     public String obtenerCalle(double lat, double lon) {
         try {
             esperarTurno();
