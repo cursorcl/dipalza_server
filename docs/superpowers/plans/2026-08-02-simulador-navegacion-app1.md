@@ -766,6 +766,7 @@ class VendedorSimulacion:
         if self.tiempo_restante_parada_s <= 0:
             self.estado = EstadoVendedor.EN_MOVIMIENTO
             self.posicion_detenida = None
+            self.tiempo_hasta_proxima_parada_s = sortear_umbral_proxima_parada_s(self.rng)
         else:
             lat, lon = jitter_gps(lat, lon, self.rng)
         return self._mensaje_posicion(lat, lon)
@@ -805,7 +806,7 @@ class VendedorSimulacion:
 ```bash
 pytest tests/test_vendedor.py -v
 ```
-Esperado: 7 tests PASS.
+Esperado: 8 tests PASS (incluye el test de resorteo del umbral al reanudar de una parada, agregado en la revisión de esta task — ver nota más abajo).
 
 - [ ] **Step 5: Commit**
 
