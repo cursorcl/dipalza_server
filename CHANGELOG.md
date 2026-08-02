@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/cursorcl/dipalza_server/compare/v1.5.0...v1.5.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* dispara el release pendiente del frontend embebido ([#17](https://github.com/cursorcl/dipalza_server/issues/17)) ([4b41753](https://github.com/cursorcl/dipalza_server/commit/4b41753dfd6d68f474715f9b3dd91732fcd7c57c))
+
 # [1.5.0](https://github.com/cursorcl/dipalza_server/compare/v1.4.0...v1.5.0) (2026-08-02)
 
 
