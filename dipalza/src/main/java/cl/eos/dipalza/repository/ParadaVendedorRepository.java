@@ -1,6 +1,7 @@
 package cl.eos.dipalza.repository;
 
 import cl.eos.dipalza.entity.ParadaVendedor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -30,4 +31,6 @@ public interface ParadaVendedorRepository
     @Query("update ParadaVendedor p set p.latitud = :latitud, p.longitud = :longitud, p.horaFin = :horaFin where p.id = :id")
     void actualizarUbicacionYHoraFin(@Param("id") Long id, @Param("latitud") double latitud,
                                       @Param("longitud") double longitud, @Param("horaFin") LocalDateTime horaFin);
+
+    List<ParadaVendedor> findByCalle(String calle, Pageable pageable);
 }
