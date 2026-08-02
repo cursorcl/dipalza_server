@@ -42,7 +42,7 @@ class DeteccionControllerTest {
     void obtenerHistorico_retorna200ConLasParadas() throws Exception {
         ParadaVendedorDTO dto = new ParadaVendedorDTO(1L, "001", "V", "Juan Perez",
                 -33.45, -70.65, "Av. Providencia",
-                LocalDateTime.of(2026, 8, 1, 10, 0), LocalDateTime.of(2026, 8, 1, 10, 15));
+                LocalDateTime.of(2026, 8, 1, 10, 0), LocalDateTime.of(2026, 8, 1, 10, 15), false);
         when(deteccionService.buscarHistorico(any(PosicionFilter.class))).thenReturn(List.of(dto));
 
         mockMvc.perform(post("/api/deteccion/historico")
