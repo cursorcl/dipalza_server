@@ -86,3 +86,20 @@ def test_avanzar_en_estado_inactivo_lanza_error():
     v = _vendedor_de_prueba()
     with pytest.raises(RuntimeError):
         v.avanzar(30)
+
+
+def test_tras_reanudar_de_parada_el_umbral_se_resortea_y_no_vuelve_a_detenerse_de_inmediato():
+    v = _vendedor_de_prueba(tiempo_ida_s=1000.0)
+    v.iniciar()
+    v.tiempo_hasta_proxima_parada_s = 20
+    v.avanzar(30)  # entra en DETENIDO
+    assert v.estado == EstadoVendedor.DETENIDO
+
+    v.tiempo_restante_parada_s = 25  # forzamos que el proximo tick la termine
+    v.avanzar(30)  # reanuda EN_MOVIMIENTO y debe resortear el umbral
+    assert v.estado == EstadoVendedor.EN_MOVIMIENTO
+    assert v.tiempo_hasta_proxima_parada_s > 0
+
+    mensaje = v.avanzar(30)  # un tick mas de movimiento normal
+    assert v.estado == EstadoVendedor.EN_MOVIMIENTO
+    assert mensaje["tipo"] == "posicion"
