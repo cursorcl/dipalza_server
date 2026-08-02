@@ -44,7 +44,15 @@ import static org.awaitility.Awaitility.await;
  * para no dejar filas huérfanas en {@code dbo.parada_vendedor}/
  * {@code dbo.parada_vendedor_grupo_actual} en la BD compartida — la limpieza de
  * {@code parada_vendedor} está acotada al par lat/lon fijo de prueba
- * (-33.45/-70.65), que este test es el único que usa.</p>
+ * (-33.45/-70.65), que este test es el único que usa. La tabla
+ * {@code parada_vendedor_grupo_actual}, en cambio, es un acumulador de una sola
+ * fila por vendedor que un GPS real (u otra corrida de este mismo test en vuelo)
+ * puede estar escribiendo en cualquier momento vía
+ * {@code PosicionService.registrarUbicacion}; por eso este test nunca la borra
+ * a ciegas: antes de limpiar, toma una instantánea de la fila existente para ese
+ * vendedor (si hay una) y, al finalizar, la restaura tal cual estaba —el peor
+ * caso posible es una limpieza y restauración temporal, nunca una pérdida
+ * permanente de datos reales.</p>
  */
 @SpringBootTest
 @ActiveProfiles({"dev-nosec", "it"})
@@ -65,17 +73,55 @@ class DeteccionParadaServiceIT {
 
     private Vendedor vendedor;
 
+    // Instantanea de la fila preexistente de parada_vendedor_grupo_actual para VENDEDOR_ID (si
+    // existia una antes de que este test corriera), para restaurarla en @AfterEach y nunca perder
+    // datos reales de un GPS en curso u otra corrida de este test en vuelo. Null si no habia nada.
+    private cl.eos.dipalza.entity.ParadaVendedorGrupoActual grupoPreexistente;
+
     @BeforeEach
     void prepararEstado() {
-        limpiar();
         vendedor = vendedorRepository.findById(VENDEDOR_ID).orElseThrow();
+        capturarGrupoPreexistente();
+        grupoActualRepository.deleteById(VENDEDOR_ID);
+        limpiarParadasDePrueba();
     }
 
     @AfterEach
     void limpiar() {
+        // Borra lo que haya producido ESTE test run (nunca lo que se restaura despues).
         grupoActualRepository.deleteById(VENDEDOR_ID);
-        // Borra cualquier parada creada por corridas previas de este test, identificable por
-        // su lat/lon fija de prueba.
+        restaurarGrupoPreexistenteSiCorresponde();
+        limpiarParadasDePrueba();
+    }
+
+    private void capturarGrupoPreexistente() {
+        grupoPreexistente = grupoActualRepository.findById(VENDEDOR_ID).map(existente -> {
+            cl.eos.dipalza.entity.ParadaVendedorGrupoActual copia =
+                    new cl.eos.dipalza.entity.ParadaVendedorGrupoActual();
+            copia.setId(existente.getId());
+            copia.setVendedor(vendedor);
+            copia.setDia(existente.getDia());
+            copia.setLatitudReferencia(existente.getLatitudReferencia());
+            copia.setLongitudReferencia(existente.getLongitudReferencia());
+            copia.setHoraInicio(existente.getHoraInicio());
+            copia.setHoraUltimoPunto(existente.getHoraUltimoPunto());
+            copia.setSumaLatitud(existente.getSumaLatitud());
+            copia.setSumaLongitud(existente.getSumaLongitud());
+            copia.setCantidadPuntos(existente.getCantidadPuntos());
+            copia.setParadaVendedorId(existente.getParadaVendedorId());
+            return copia;
+        }).orElse(null);
+    }
+
+    private void restaurarGrupoPreexistenteSiCorresponde() {
+        if (grupoPreexistente != null) {
+            grupoActualRepository.save(grupoPreexistente);
+        }
+    }
+
+    // Borra cualquier parada creada por corridas previas (o la actual) de este test,
+    // identificable por su lat/lon fija de prueba -- acotado y seguro, ver Javadoc de la clase.
+    private void limpiarParadasDePrueba() {
         paradaVendedorRepository.findAll((root, query, cb) ->
                 cb.and(cb.equal(root.get("latitud"), -33.45), cb.equal(root.get("longitud"), -70.65)))
                 .forEach(p -> paradaVendedorRepository.deleteById(p.getId()));
