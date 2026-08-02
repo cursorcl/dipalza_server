@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/cursorcl/dipalza_server/compare/v1.3.0...v1.4.0) (2026-08-02)
+
+
+### Features
+
+* detección de paradas en tiempo real con calle resuelta ([#14](https://github.com/cursorcl/dipalza_server/issues/14)) ([e7a9205](https://github.com/cursorcl/dipalza_server/commit/e7a92057a77ca5c3d8bd7949fc5fa2cd33124fc6))
+
 # [1.3.0](https://github.com/cursorcl/dipalza_server/compare/v1.2.2...v1.3.0) (2026-07-24)
 
 
