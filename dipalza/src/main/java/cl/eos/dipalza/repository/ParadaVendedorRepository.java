@@ -10,6 +10,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface ParadaVendedorRepository
@@ -23,4 +24,10 @@ public interface ParadaVendedorRepository
     @Transactional
     @Query("update ParadaVendedor p set p.calle = :calle where p.id = :id")
     void actualizarCalle(@Param("id") Long id, @Param("calle") String calle);
+
+    @Modifying
+    @Transactional
+    @Query("update ParadaVendedor p set p.latitud = :latitud, p.longitud = :longitud, p.horaFin = :horaFin where p.id = :id")
+    void actualizarUbicacionYHoraFin(@Param("id") Long id, @Param("latitud") double latitud,
+                                      @Param("longitud") double longitud, @Param("horaFin") LocalDateTime horaFin);
 }

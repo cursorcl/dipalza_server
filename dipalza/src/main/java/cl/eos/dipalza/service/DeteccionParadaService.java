@@ -55,14 +55,11 @@ public class DeteccionParadaService {
                 grupo.getLatitudReferencia(), grupo.getLongitudReferencia(), lat, lon) > RADIO_METROS;
 
         if (cambioDeDia || seAleja) {
-            cerrarGrupo(grupo, vendedorRef);
+            // El grupo anterior ya quedo persistido/actualizado (si califico) por extensiones
+            // previas dentro de extenderGrupo() -- cerrar no requiere ningun trabajo adicional.
             abrirNuevoGrupo(vendedorId, vendedorRef, lat, lon, fecha);
         } else {
-            grupo.setHoraUltimoPunto(fecha);
-            grupo.setSumaLatitud(grupo.getSumaLatitud() + lat);
-            grupo.setSumaLongitud(grupo.getSumaLongitud() + lon);
-            grupo.setCantidadPuntos(grupo.getCantidadPuntos() + 1);
-            grupoActualRepository.save(grupo);
+            extenderGrupo(grupo, vendedorRef, lat, lon, fecha);
         }
     }
 
@@ -79,22 +76,38 @@ public class DeteccionParadaService {
         nuevo.setSumaLatitud(lat);
         nuevo.setSumaLongitud(lon);
         nuevo.setCantidadPuntos(1);
+        nuevo.setParadaVendedorId(null);
         grupoActualRepository.save(nuevo);
     }
 
-    private void cerrarGrupo(ParadaVendedorGrupoActual grupo, Vendedor vendedorRef) {
+    private void extenderGrupo(ParadaVendedorGrupoActual grupo, Vendedor vendedorRef,
+                                double lat, double lon, LocalDateTime fecha) {
+        grupo.setHoraUltimoPunto(fecha);
+        grupo.setSumaLatitud(grupo.getSumaLatitud() + lat);
+        grupo.setSumaLongitud(grupo.getSumaLongitud() + lon);
+        grupo.setCantidadPuntos(grupo.getCantidadPuntos() + 1);
+
         Duration duracion = Duration.between(grupo.getHoraInicio(), grupo.getHoraUltimoPunto());
-        if (duracion.compareTo(DURACION_MINIMA) < 0) {
-            return;
+        if (duracion.compareTo(DURACION_MINIMA) >= 0) {
+            double latPromedio = grupo.getSumaLatitud() / grupo.getCantidadPuntos();
+            double lonPromedio = grupo.getSumaLongitud() / grupo.getCantidadPuntos();
+
+            if (grupo.getParadaVendedorId() == null) {
+                ParadaVendedor parada = new ParadaVendedor();
+                parada.setVendedor(vendedorRef);
+                parada.setLatitud(latPromedio);
+                parada.setLongitud(lonPromedio);
+                parada.setHoraInicio(grupo.getHoraInicio());
+                parada.setHoraFin(grupo.getHoraUltimoPunto());
+                parada.setCalle(CALLE_PENDIENTE);
+                parada = paradaVendedorRepository.save(parada);
+                grupo.setParadaVendedorId(parada.getId());
+                eventPublisher.publishEvent(new ParadaDetectadaEvent(parada.getId(), latPromedio, lonPromedio));
+            } else {
+                paradaVendedorRepository.actualizarUbicacionYHoraFin(
+                        grupo.getParadaVendedorId(), latPromedio, lonPromedio, grupo.getHoraUltimoPunto());
+            }
         }
-        ParadaVendedor parada = new ParadaVendedor();
-        parada.setVendedor(vendedorRef);
-        parada.setLatitud(grupo.getSumaLatitud() / grupo.getCantidadPuntos());
-        parada.setLongitud(grupo.getSumaLongitud() / grupo.getCantidadPuntos());
-        parada.setHoraInicio(grupo.getHoraInicio());
-        parada.setHoraFin(grupo.getHoraUltimoPunto());
-        parada.setCalle(CALLE_PENDIENTE);
-        parada = paradaVendedorRepository.save(parada);
-        eventPublisher.publishEvent(new ParadaDetectadaEvent(parada.getId(), parada.getLatitud(), parada.getLongitud()));
+        grupoActualRepository.save(grupo);
     }
 }

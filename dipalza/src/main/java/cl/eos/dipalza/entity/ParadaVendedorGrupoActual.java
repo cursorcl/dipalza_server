@@ -35,4 +35,5 @@ public class ParadaVendedorGrupoActual {
     private double sumaLatitud;
     private double sumaLongitud;
     private int cantidadPuntos;
+    private Long paradaVendedorId;
 }

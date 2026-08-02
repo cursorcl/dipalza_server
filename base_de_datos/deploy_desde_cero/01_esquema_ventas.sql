@@ -100,6 +100,7 @@ CREATE TABLE dbo.parada_vendedor_grupo_actual (
     sumaLatitud         float NOT NULL,
     sumaLongitud        float NOT NULL,
     cantidadPuntos      int NOT NULL,
+    paradaVendedorId    bigint NULL,
     CONSTRAINT pk_parada_vendedor_grupo_actual PRIMARY KEY (vendedorId, vendedorCodigo)
 );
 

@@ -19,6 +19,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,15 +57,16 @@ class DeteccionParadaServiceTest {
         assertThat(grupo.getCantidadPuntos()).isEqualTo(1);
         assertThat(grupo.getSumaLatitud()).isEqualTo(-33.45);
         assertThat(grupo.getDia()).isEqualTo(fecha.toLocalDate());
+        assertThat(grupo.getParadaVendedorId()).isNull();
         verifyNoInteractions(paradaVendedorRepository, eventPublisher);
     }
 
     @Test
-    void dentroDelRadioMismoDia_extiendeGrupo() {
+    void dentroDelRadioMismoDia_duracionAunInsuficiente_extiendeSinCrearParada() {
         ParadaVendedorGrupoActual grupo = grupoAbierto(LocalDateTime.of(2026, 8, 1, 10, 0), -33.45, -70.65);
         when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
 
-        LocalDateTime fechaNueva = LocalDateTime.of(2026, 8, 1, 10, 5);
+        LocalDateTime fechaNueva = LocalDateTime.of(2026, 8, 1, 10, 5); // 5 min, < 10 min umbral
         // ~10m de distancia, dentro del radio de 100m
         service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45009, -70.65, fechaNueva);
 
@@ -75,115 +77,141 @@ class DeteccionParadaServiceTest {
         assertThat(actualizado.getSumaLatitud()).isEqualTo(-33.45 + -33.45009);
         assertThat(actualizado.getHoraUltimoPunto()).isEqualTo(fechaNueva);
         assertThat(actualizado.getLatitudReferencia()).isEqualTo(-33.45); // referencia NO cambia
+        assertThat(actualizado.getParadaVendedorId()).isNull(); // aun no califica
         verifyNoInteractions(paradaVendedorRepository, eventPublisher);
     }
 
     @Test
-    void seAlejaYDuracionSuficiente_cierraYPersisteComoParada() {
+    void extensionCruzaElUmbralPorPrimeraVez_creaLaParadaYPublicaEvento() {
         LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
         ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
-        grupo.setHoraUltimoPunto(inicio.plusMinutes(12));
-        grupo.setSumaLatitud(-33.45 * 3);
-        grupo.setSumaLongitud(-70.65 * 3);
-        grupo.setCantidadPuntos(3);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(9)); // 9 min acumulados, aun no califica
+        grupo.setSumaLatitud(-33.45 * 2);
+        grupo.setSumaLongitud(-70.65 * 2);
+        grupo.setCantidadPuntos(2);
         when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
         when(paradaVendedorRepository.save(any(ParadaVendedor.class)))
-                .thenAnswer(inv -> { ParadaVendedor p = inv.getArgument(0); p.setId(99L); return p; });
+                .thenAnswer(inv -> { ParadaVendedor p = inv.getArgument(0); p.setId(50L); return p; });
 
-        LocalDateTime fechaLejos = inicio.plusMinutes(13);
-        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.50, -70.70, fechaLejos); // >100m
+        LocalDateTime fechaCruceUmbral = inicio.plusMinutes(11); // 11 min totales, cruza el umbral de 10
+        // sigue dentro del radio (~10m)
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45009, -70.65, fechaCruceUmbral);
 
         ArgumentCaptor<ParadaVendedor> paradaCaptor = ArgumentCaptor.forClass(ParadaVendedor.class);
         verify(paradaVendedorRepository).save(paradaCaptor.capture());
-        ParadaVendedor persistida = paradaCaptor.getValue();
-        assertThat(persistida.getLatitud()).isEqualTo(-33.45);
-        assertThat(persistida.getLongitud()).isEqualTo(-70.65);
-        assertThat(persistida.getHoraInicio()).isEqualTo(inicio);
-        assertThat(persistida.getHoraFin()).isEqualTo(inicio.plusMinutes(12));
-        assertThat(persistida.getCalle()).isEqualTo("Calle no disponible");
+        ParadaVendedor creada = paradaCaptor.getValue();
+        assertThat(creada.getHoraInicio()).isEqualTo(inicio);
+        assertThat(creada.getHoraFin()).isEqualTo(fechaCruceUmbral);
+        assertThat(creada.getCalle()).isEqualTo("Calle no disponible");
+        // promedio de 3 puntos: -33.45, -33.45, -33.45009
+        assertThat(creada.getLatitud()).isEqualTo((-33.45 * 2 + -33.45009) / 3);
 
-        verify(eventPublisher).publishEvent(new ParadaDetectadaEvent(99L, -33.45, -70.65));
+        verify(eventPublisher).publishEvent(new ParadaDetectadaEvent(50L, creada.getLatitud(), creada.getLongitud()));
 
-        // se abre un grupo nuevo con el punto entrante como referencia.
-        // cerrarGrupo() NUNCA llama a grupoActualRepository (solo persiste la
-        // ParadaVendedor y publica el evento) — el UNICO save() del grupo en
-        // este flujo viene de abrirNuevoGrupo(), asi que se espera 1 sola
-        // invocacion, no 2.
         ArgumentCaptor<ParadaVendedorGrupoActual> grupoCaptor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
-        verify(grupoActualRepository, times(1)).save(grupoCaptor.capture());
-        ParadaVendedorGrupoActual nuevoGrupo = grupoCaptor.getValue();
-        assertThat(nuevoGrupo.getLatitudReferencia()).isEqualTo(-33.50);
-        assertThat(nuevoGrupo.getCantidadPuntos()).isEqualTo(1);
+        verify(grupoActualRepository).save(grupoCaptor.capture());
+        assertThat(grupoCaptor.getValue().getParadaVendedorId()).isEqualTo(50L);
+
+        verify(paradaVendedorRepository, never()).actualizarUbicacionYHoraFin(any(), anyDouble(), anyDouble(), any());
     }
 
     @Test
-    void seAlejaJustoSobreElRadio_102m_cierraYPersisteComoParada() {
+    void extensionConDuracionExactamenteDiezMinutos_yaCalifica() {
         LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
         ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
-        grupo.setHoraUltimoPunto(inicio.plusMinutes(12)); // duracion suficiente
-        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
-        when(paradaVendedorRepository.save(any(ParadaVendedor.class)))
-                .thenAnswer(inv -> { ParadaVendedor p = inv.getArgument(0); p.setId(100L); return p; });
-
-        // -33.45092 queda a ~102.3m de (-33.45, -70.65) segun GeoUtils.distanciaMetros (Haversine,
-        // desplazamiento puro en latitud) — justo por encima del radio de 100m. Confirma que
-        // '> 100m' SI dispara el cierre del grupo (no solo distancias muy por fuera, como ~7km).
-        LocalDateTime fechaLejos = inicio.plusMinutes(13);
-        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45092, -70.65, fechaLejos);
-
-        verify(paradaVendedorRepository).save(any(ParadaVendedor.class));
-        verify(eventPublisher).publishEvent(any(ParadaDetectadaEvent.class));
-    }
-
-    @Test
-    void duracionExactamenteDiezMinutos_calificaYPersisteComoParada() {
-        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
-        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
-        grupo.setHoraUltimoPunto(inicio.plusMinutes(10)); // duracion EXACTA de 10 min (limite inclusivo)
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(9));
         when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
         when(paradaVendedorRepository.save(any(ParadaVendedor.class)))
                 .thenAnswer(inv -> { ParadaVendedor p = inv.getArgument(0); p.setId(101L); return p; });
 
-        // cerrarGrupo() solo descarta si duracion.compareTo(DURACION_MINIMA) < 0, es decir
-        // ESTRICTAMENTE menor a 10 min; exactamente 10 min debe calificar.
-        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.50, -70.70, inicio.plusMinutes(11)); // >100m
+        // El umbral es inclusivo: extenderGrupo() crea la parada cuando
+        // duracion.compareTo(DURACION_MINIMA) >= 0, es decir exactamente 10 min ya califica.
+        LocalDateTime fechaDiezMinutosExactos = inicio.plusMinutes(10);
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45009, -70.65, fechaDiezMinutosExactos);
 
-        verify(paradaVendedorRepository).save(any(ParadaVendedor.class));
+        ArgumentCaptor<ParadaVendedor> paradaCaptor = ArgumentCaptor.forClass(ParadaVendedor.class);
+        verify(paradaVendedorRepository).save(paradaCaptor.capture());
+        assertThat(paradaCaptor.getValue().getHoraFin()).isEqualTo(fechaDiezMinutosExactos);
         verify(eventPublisher).publishEvent(any(ParadaDetectadaEvent.class));
     }
 
     @Test
-    void seAlejaPeroDuracionInsuficiente_descartaSinPersistir() {
+    void extensionConGrupoYaCalificado_actualizaLaParadaExistente_sinCrearNiPublicarDeNuevo() {
         LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
         ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
-        grupo.setHoraUltimoPunto(inicio.plusMinutes(4)); // < 10 min
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(11));
+        grupo.setSumaLatitud(-33.45 * 3);
+        grupo.setSumaLongitud(-70.65 * 3);
+        grupo.setCantidadPuntos(3);
+        grupo.setParadaVendedorId(50L); // ya califico antes, la parada 50 ya existe
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+
+        LocalDateTime fechaNueva = inicio.plusMinutes(15);
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45009, -70.65, fechaNueva);
+
+        double latPromedioEsperado = (-33.45 * 3 + -33.45009) / 4;
+        verify(paradaVendedorRepository).actualizarUbicacionYHoraFin(
+                eq(50L), eq(latPromedioEsperado), anyDouble(), eq(fechaNueva));
+        verify(paradaVendedorRepository, never()).save(any(ParadaVendedor.class));
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void seAlejaJustoSobreElRadio_102m_conGrupoYaCalificado_soloAbreGrupoNuevo() {
+        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(12));
+        grupo.setParadaVendedorId(77L); // ya califico y fue actualizado durante el trayecto
+        when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
+
+        // -33.45092 queda a ~102.3m de (-33.45, -70.65) — justo por encima del radio de 100m
+        LocalDateTime fechaLejos = inicio.plusMinutes(13);
+        service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45092, -70.65, fechaLejos);
+
+        // el grupo que se cierra ya estaba al dia (ultima extension lo actualizo) -- cerrar no hace
+        // NINGUN trabajo de persistencia nuevo sobre la parada 77
+        verifyNoInteractions(paradaVendedorRepository, eventPublisher);
+        ArgumentCaptor<ParadaVendedorGrupoActual> grupoCaptor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
+        verify(grupoActualRepository).save(grupoCaptor.capture());
+        ParadaVendedorGrupoActual nuevoGrupo = grupoCaptor.getValue();
+        assertThat(nuevoGrupo.getLatitudReferencia()).isEqualTo(-33.45092);
+        assertThat(nuevoGrupo.getParadaVendedorId()).isNull(); // grupo nuevo, aun no califica
+    }
+
+    @Test
+    void seAlejaConGrupoNuncaCalifico_descartaSinPersistir() {
+        LocalDateTime inicio = LocalDateTime.of(2026, 8, 1, 10, 0);
+        ParadaVendedorGrupoActual grupo = grupoAbierto(inicio, -33.45, -70.65);
+        grupo.setHoraUltimoPunto(inicio.plusMinutes(4)); // < 10 min, nunca califico
         when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
 
         service.procesarNuevoPunto(vendedorId, vendedorRef, -33.50, -70.70, inicio.plusMinutes(5));
 
         verifyNoInteractions(paradaVendedorRepository, eventPublisher);
-        // igual se abre grupo nuevo (1 sola invocacion, ver nota en el test anterior)
         verify(grupoActualRepository, times(1)).save(any());
     }
 
     @Test
-    void cambioDeDiaCalendario_fuerzaCierreAunqueNoSeHayaMovido() {
+    void cambioDeDiaCalendario_conGrupoQueCalificoAyer_soloAbreGrupoNuevoHoy() {
         LocalDateTime inicioAyer = LocalDateTime.of(2026, 7, 31, 23, 50);
         ParadaVendedorGrupoActual grupo = grupoAbierto(inicioAyer, -33.45, -70.65);
-        grupo.setHoraUltimoPunto(inicioAyer.plusMinutes(11)); // cruza medianoche, califica por duracion
+        grupo.setHoraUltimoPunto(inicioAyer.plusMinutes(11)); // califico y ya fue persistido/actualizado ayer
+        grupo.setParadaVendedorId(1L);
         when(grupoActualRepository.findById(vendedorId)).thenReturn(Optional.of(grupo));
-        when(paradaVendedorRepository.save(any(ParadaVendedor.class)))
-                .thenAnswer(inv -> { ParadaVendedor p = inv.getArgument(0); p.setId(1L); return p; });
 
         LocalDateTime hoyMismaUbicacion = LocalDateTime.of(2026, 8, 1, 0, 5); // MISMA lat/lon, otro dia
         service.procesarNuevoPunto(vendedorId, vendedorRef, -33.45, -70.65, hoyMismaUbicacion);
 
-        verify(paradaVendedorRepository).save(any(ParadaVendedor.class));
-        verify(eventPublisher).publishEvent(any(ParadaDetectadaEvent.class));
+        // el cambio de dia fuerza abrir grupo nuevo; la parada de ayer (id 1) no necesita ningun
+        // trabajo adicional porque ya quedo al dia por la ultima extension de ayer
+        verifyNoInteractions(paradaVendedorRepository, eventPublisher);
+        ArgumentCaptor<ParadaVendedorGrupoActual> grupoCaptor = ArgumentCaptor.forClass(ParadaVendedorGrupoActual.class);
+        verify(grupoActualRepository).save(grupoCaptor.capture());
+        assertThat(grupoCaptor.getValue().getDia()).isEqualTo(LocalDateTime.of(2026, 8, 1, 0, 5).toLocalDate());
     }
 
     @Test
-    void grupoAbiertoUnSoloPunto_alCerrarNoCalifica() {
+    void grupoAbiertoUnSoloPunto_alAlejarseInmediatamenteNoCalifica() {
         LocalDateTime fecha = LocalDateTime.of(2026, 8, 1, 10, 0);
         ParadaVendedorGrupoActual grupo = grupoAbierto(fecha, -33.45, -70.65); // 1 solo punto, duracion 0
 
