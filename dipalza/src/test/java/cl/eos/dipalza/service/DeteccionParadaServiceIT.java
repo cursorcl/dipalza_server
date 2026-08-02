@@ -78,16 +78,29 @@ class DeteccionParadaServiceIT {
     // datos reales de un GPS en curso u otra corrida de este test en vuelo. Null si no habia nada.
     private cl.eos.dipalza.entity.ParadaVendedorGrupoActual grupoPreexistente;
 
+    // Solo true cuando prepararEstado() completo exitosamente (busqueda del vendedor +
+    // captura de la instantanea). Si @BeforeEach lanza antes de llegar al final, JUnit 5
+    // igual ejecuta @AfterEach -- sin esta bandera, limpiar() borraria
+    // parada_vendedor_grupo_actual sin haber capturado nada que restaurar, reintroduciendo
+    // el riesgo de borrado a ciegas que la instantanea existe para evitar.
+    private boolean estadoPreparado;
+
     @BeforeEach
     void prepararEstado() {
         vendedor = vendedorRepository.findById(VENDEDOR_ID).orElseThrow();
         capturarGrupoPreexistente();
         grupoActualRepository.deleteById(VENDEDOR_ID);
         limpiarParadasDePrueba();
+        estadoPreparado = true;
     }
 
     @AfterEach
     void limpiar() {
+        if (!estadoPreparado) {
+            // prepararEstado() no completo (p.ej. el vendedor de prueba ya no existe) --
+            // no se capturo ninguna instantanea, asi que no hay nada seguro que limpiar.
+            return;
+        }
         // Borra lo que haya producido ESTE test run (nunca lo que se restaura despues).
         grupoActualRepository.deleteById(VENDEDOR_ID);
         restaurarGrupoPreexistenteSiCorresponde();
@@ -123,7 +136,10 @@ class DeteccionParadaServiceIT {
     // identificable por su lat/lon fija de prueba -- acotado y seguro, ver Javadoc de la clase.
     private void limpiarParadasDePrueba() {
         paradaVendedorRepository.findAll((root, query, cb) ->
-                cb.and(cb.equal(root.get("latitud"), -33.45), cb.equal(root.get("longitud"), -70.65)))
+                cb.and(
+                        cb.equal(root.get("latitud"), -33.45),
+                        cb.equal(root.get("longitud"), -70.65),
+                        cb.equal(root.get("vendedor").get("id"), VENDEDOR_ID)))
                 .forEach(p -> paradaVendedorRepository.deleteById(p.getId()));
     }
 

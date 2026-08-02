@@ -5,6 +5,7 @@ import cl.eos.dipalza.repository.ParadaVendedorRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -33,14 +34,25 @@ public class GeocodificacionRetryService {
     // deterministicamente inutil.
     @Scheduled(fixedDelay = QUINCE_MINUTOS_MS)
     public void reintentarGeocodificacionPendiente() {
+        // Orden deterministico (mas antiguo primero): sin esto, que 20 filas vuelven en
+        // cada corrida depende del motor de BD -- si un subconjunto falla permanentemente,
+        // esas mismas filas arbitrarias podrian reintentarse por siempre mientras filas
+        // pendientes mas nuevas nunca llegan a intentarse.
         List<ParadaVendedor> pendientes = paradaVendedorRepository.findByCalle(
-                GeocodificacionService.CALLE_NO_DISPONIBLE, PageRequest.of(0, TAMANO_LOTE));
+                GeocodificacionService.CALLE_NO_DISPONIBLE,
+                PageRequest.of(0, TAMANO_LOTE, Sort.by("horaInicio")));
 
         for (ParadaVendedor parada : pendientes) {
-            String calle = geocodificacionService.obtenerCalle(parada.getLatitud(), parada.getLongitud());
-            if (!GeocodificacionService.CALLE_NO_DISPONIBLE.equals(calle)) {
-                paradaVendedorRepository.actualizarCalle(parada.getId(), calle);
-                log.info("Geocodificacion reintentada con exito para parada {}", parada.getId());
+            try {
+                String calle = geocodificacionService.obtenerCalle(parada.getLatitud(), parada.getLongitud());
+                if (!GeocodificacionService.CALLE_NO_DISPONIBLE.equals(calle)) {
+                    paradaVendedorRepository.actualizarCalle(parada.getId(), calle);
+                    log.info("Geocodificacion reintentada con exito para parada {}", parada.getId());
+                }
+            } catch (Exception e) {
+                // Una fila fallando (p.ej. error transitorio de BD en actualizarCalle) no
+                // debe abortar el resto del lote.
+                log.warn("Fallo al reintentar geocodificacion para parada {}", parada.getId(), e);
             }
         }
     }

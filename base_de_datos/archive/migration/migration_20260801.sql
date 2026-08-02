@@ -9,6 +9,11 @@
 --
 -- No se hace backfill de datos historicos: la deteccion opera solo hacia
 -- adelante desde el momento en que se aplique esta migracion.
+--
+-- NOTA: la descripcion de arriba ("parada ya cerrada") quedo desactualizada
+-- por el rediseño de la Task 7 (ver migration_20260801b.sql y
+-- DeteccionParadaService) -- las filas ahora se crean progresivamente,
+-- mientras la parada sigue en curso, no solo al cerrarse.
 
 BEGIN TRAN;
 
