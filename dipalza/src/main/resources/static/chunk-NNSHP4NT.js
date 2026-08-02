@@ -1,0 +1,1 @@
+import{X as e}from"./chunk-EJUXXFN7.js";var n=(()=>{let t=class t{constructor(){this.results=[]}setResults(r){this.results=r}getResults(){return this.results}};t.\u0275fac=function(o){return new(o||t)},t.\u0275prov=e({token:t,factory:t.\u0275fac,providedIn:"root"});let s=t;return s})();export{n as a};
