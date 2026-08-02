@@ -895,6 +895,260 @@ git commit -m "test: agrega test de integracion para DeteccionParadaService (REQ
 
 ---
 
+## Addendum 2026-08-01 (parte 2): flag `enCurso` en el DTO de lectura
+
+Tras la revisión final v2 del branch (Tasks 1-9 completas), el revisor
+notó que el DTO de lectura no distingue una parada que sigue en curso (el
+vendedor aún no se aleja) de una ya terminada — el frontend no podría
+saber si una parada de 25 min sigue creciendo o ya cerró. El usuario pidió
+agregar ese flag ahora, antes de cerrar la rama, en vez de dejarlo para
+cuando se construya el frontend (evita coordinar un cambio de contrato
+entre dos repos después de que el frontend ya consuma el endpoint).
+
+**Nueva Global Constraint:** una parada está "en curso" si y solo si su
+`id` coincide con el `paradaVendedorId` de la fila de
+`parada_vendedor_grupo_actual` del vendedor dueño de esa parada (dato ya
+persistido por la Task 7, no requiere migración nueva). Dado el volumen
+trivial de esta tabla (a lo sumo 1 fila por vendedor activo), no hace
+falta una query filtrada — se trae toda la tabla y se arma un `Set<Long>`
+en memoria.
+
+---
+
+### Task 10: Flag `enCurso` en `ParadaVendedorDTO`
+
+**Files:**
+- Modify: `dipalza/src/main/java/cl/eos/dipalza/model/ParadaVendedorDTO.java`
+- Modify: `dipalza/src/main/java/cl/eos/dipalza/mapper/ParadaVendedorMapper.java`
+- Modify: `dipalza/src/main/java/cl/eos/dipalza/service/DeteccionService.java`
+- Modify: `dipalza/src/test/java/cl/eos/dipalza/service/DeteccionServiceTest.java`
+- Modify: `dipalza/src/test/java/cl/eos/dipalza/controller/DeteccionControllerTest.java`
+
+**Interfaces:**
+- Consumes: `ParadaVendedorGrupoActualRepository` (existente, Task 2) — `DeteccionService` la inyecta por primera vez.
+- Produces: `ParadaVendedorDTO` gana un campo `enCurso` (boolean) al final del record — cualquier otro consumidor de este DTO (ninguno más en este repo por ahora) debe actualizarse si se agrega en el futuro.
+
+- [ ] **Paso 1: Actualizar el DTO**
+
+```java
+package cl.eos.dipalza.model;
+
+import java.time.LocalDateTime;
+
+public record ParadaVendedorDTO(
+        Long id, String vendedorId, String vendedorCodigo, String vendedorNombre,
+        double latitud, double longitud, String calle,
+        LocalDateTime horaInicio, LocalDateTime horaFin, boolean enCurso) {
+}
+```
+
+- [ ] **Paso 2: Actualizar el mapper — recibe el flag como parámetro (no lo calcula él mismo, no tiene acceso al repositorio de grupos)**
+
+```java
+package cl.eos.dipalza.mapper;
+
+import cl.eos.dipalza.entity.ParadaVendedor;
+import cl.eos.dipalza.model.ParadaVendedorDTO;
+
+public class ParadaVendedorMapper {
+
+    private ParadaVendedorMapper() {
+    }
+
+    public static ParadaVendedorDTO toDTO(ParadaVendedor p, boolean enCurso) {
+        if (p == null || p.getVendedor() == null) {
+            return null;
+        }
+        return new ParadaVendedorDTO(
+                p.getId(), p.getVendedor().getId().getCodigo(), p.getVendedor().getId().getTipo(),
+                p.getVendedor().getNombre(), p.getLatitud(), p.getLongitud(), p.getCalle(),
+                p.getHoraInicio(), p.getHoraFin(), enCurso);
+    }
+}
+```
+
+- [ ] **Paso 3: Actualizar el test de `DeteccionServiceTest` primero (debe fallar — `DeteccionService` aún no tiene el segundo constructor arg ni la lógica nueva)**
+
+Reemplazar el archivo completo:
+
+```java
+package cl.eos.dipalza.service;
+
+import cl.eos.dipalza.entity.ParadaVendedor;
+import cl.eos.dipalza.entity.ParadaVendedorGrupoActual;
+import cl.eos.dipalza.entity.Vendedor;
+import cl.eos.dipalza.entity.ids.VendedorId;
+import cl.eos.dipalza.repository.ParadaVendedorGrupoActualRepository;
+import cl.eos.dipalza.repository.ParadaVendedorRepository;
+import cl.eos.dipalza.specifications.PosicionFilter;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class DeteccionServiceTest {
+
+    @Mock
+    private ParadaVendedorRepository paradaVendedorRepository;
+    @Mock
+    private ParadaVendedorGrupoActualRepository grupoActualRepository;
+
+    @Test
+    void buscarHistorico_paradaSinGrupoAbiertoApuntandoAElla_enCursoFalse() {
+        DeteccionService service = new DeteccionService(paradaVendedorRepository, grupoActualRepository);
+        Vendedor vendedor = new Vendedor(new VendedorId("001", "V"));
+        vendedor.setNombre("Juan Perez");
+        ParadaVendedor parada = new ParadaVendedor();
+        parada.setId(1L);
+        parada.setVendedor(vendedor);
+        parada.setLatitud(-33.45);
+        parada.setLongitud(-70.65);
+        parada.setCalle("Av. Providencia");
+        parada.setHoraInicio(LocalDateTime.of(2026, 8, 1, 10, 0));
+        parada.setHoraFin(LocalDateTime.of(2026, 8, 1, 10, 15));
+        when(paradaVendedorRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
+                .thenReturn(List.of(parada));
+        when(grupoActualRepository.findAll()).thenReturn(List.of()); // ningun grupo abierto
+
+        List<cl.eos.dipalza.model.ParadaVendedorDTO> resultado =
+                service.buscarHistorico(new PosicionFilter(List.of(vendedor.getId()), null, null, LocalDate.of(2026, 8, 1)));
+
+        assertThat(resultado).hasSize(1);
+        assertThat(resultado.get(0).calle()).isEqualTo("Av. Providencia");
+        assertThat(resultado.get(0).vendedorNombre()).isEqualTo("Juan Perez");
+        assertThat(resultado.get(0).enCurso()).isFalse();
+    }
+
+    @Test
+    void buscarHistorico_paradaConGrupoAbiertoApuntandoAElla_enCursoTrue() {
+        DeteccionService service = new DeteccionService(paradaVendedorRepository, grupoActualRepository);
+        Vendedor vendedor = new Vendedor(new VendedorId("001", "V"));
+        ParadaVendedor parada = new ParadaVendedor();
+        parada.setId(1L);
+        parada.setVendedor(vendedor);
+        when(paradaVendedorRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class)))
+                .thenReturn(List.of(parada));
+
+        ParadaVendedorGrupoActual grupoAbierto = new ParadaVendedorGrupoActual();
+        grupoAbierto.setId(new VendedorId("001", "V"));
+        grupoAbierto.setParadaVendedorId(1L); // apunta exactamente a la parada 1
+        ParadaVendedorGrupoActual grupoDeOtroVendedorSinCalificar = new ParadaVendedorGrupoActual();
+        grupoDeOtroVendedorSinCalificar.setId(new VendedorId("002", "V"));
+        grupoDeOtroVendedorSinCalificar.setParadaVendedorId(null); // aun no califica, no debe romper el filtro
+        when(grupoActualRepository.findAll()).thenReturn(List.of(grupoAbierto, grupoDeOtroVendedorSinCalificar));
+
+        List<cl.eos.dipalza.model.ParadaVendedorDTO> resultado =
+                service.buscarHistorico(new PosicionFilter(List.of(vendedor.getId()), null, null, LocalDate.of(2026, 8, 1)));
+
+        assertThat(resultado).hasSize(1);
+        assertThat(resultado.get(0).enCurso()).isTrue();
+    }
+}
+```
+
+- [ ] **Paso 4: Ejecutar y verificar que falla**
+
+Run: `cd dipalza && ./mvnw test -Dtest=DeteccionServiceTest -Dfrontend.skip=true`
+Expected: FAIL (compilation error — `DeteccionService` no tiene constructor de 2 argumentos ni `ParadaVendedorDTO.enCurso()`)
+
+- [ ] **Paso 5: Reescribir `DeteccionService`**
+
+```java
+package cl.eos.dipalza.service;
+
+import cl.eos.dipalza.entity.ParadaVendedorGrupoActual;
+import cl.eos.dipalza.mapper.ParadaVendedorMapper;
+import cl.eos.dipalza.model.ParadaVendedorDTO;
+import cl.eos.dipalza.repository.ParadaVendedorGrupoActualRepository;
+import cl.eos.dipalza.repository.ParadaVendedorRepository;
+import cl.eos.dipalza.specifications.ParadaVendedorSpecifications;
+import cl.eos.dipalza.specifications.PosicionFilter;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
+@Service
+public class DeteccionService {
+
+    private final ParadaVendedorRepository paradaVendedorRepository;
+    private final ParadaVendedorGrupoActualRepository grupoActualRepository;
+
+    public DeteccionService(ParadaVendedorRepository paradaVendedorRepository,
+                             ParadaVendedorGrupoActualRepository grupoActualRepository) {
+        this.paradaVendedorRepository = paradaVendedorRepository;
+        this.grupoActualRepository = grupoActualRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ParadaVendedorDTO> buscarHistorico(PosicionFilter filter) {
+        Set<Long> idsEnCurso = new HashSet<>();
+        for (ParadaVendedorGrupoActual grupo : grupoActualRepository.findAll()) {
+            if (grupo.getParadaVendedorId() != null) {
+                idsEnCurso.add(grupo.getParadaVendedorId());
+            }
+        }
+
+        return paradaVendedorRepository.findAll(ParadaVendedorSpecifications.conFiltros(filter))
+                .stream()
+                .map(p -> ParadaVendedorMapper.toDTO(p, idsEnCurso.contains(p.getId())))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+}
+```
+
+- [ ] **Paso 6: Ejecutar y verificar que pasa**
+
+Run: `cd dipalza && ./mvnw test -Dtest=DeteccionServiceTest -Dfrontend.skip=true`
+Expected: PASS (2/2)
+
+- [ ] **Paso 7: Actualizar `DeteccionControllerTest`**
+
+Cambiar la línea que construye el DTO de prueba (agregar el último
+argumento `false` o `true`, a elección — usar `false` para no implicar
+nada especial sobre el caso de prueba del controller, que solo verifica
+serialización JSON, no la lógica de `enCurso`):
+
+```java
+ParadaVendedorDTO dto = new ParadaVendedorDTO(1L, "001", "V", "Juan Perez",
+        -33.45, -70.65, "Av. Providencia",
+        LocalDateTime.of(2026, 8, 1, 10, 0), LocalDateTime.of(2026, 8, 1, 10, 15), false);
+```
+
+- [ ] **Paso 8: Ejecutar la suite completa**
+
+Run: `cd dipalza && ./mvnw test -Dfrontend.skip=true`
+Expected: PASS (todos — revisar también que ningún otro archivo construya
+`ParadaVendedorDTO` con el constructor viejo de 9 argumentos; buscar con
+`grep -rn "new ParadaVendedorDTO(" dipalza/src` antes de dar por
+terminado, y actualizar cualquier otro sitio que aparezca)
+
+- [ ] **Paso 9: Commit**
+
+```bash
+git add dipalza/src/main/java/cl/eos/dipalza/model/ParadaVendedorDTO.java \
+        dipalza/src/main/java/cl/eos/dipalza/mapper/ParadaVendedorMapper.java \
+        dipalza/src/main/java/cl/eos/dipalza/service/DeteccionService.java \
+        dipalza/src/test/java/cl/eos/dipalza/service/DeteccionServiceTest.java \
+        dipalza/src/test/java/cl/eos/dipalza/controller/DeteccionControllerTest.java
+git commit -m "feat: agrega flag enCurso al DTO de paradas para distinguir en curso de terminadas"
+```
+
+---
+
 ### Task 1: Migración SQL — tablas nuevas
 
 **Files:**
