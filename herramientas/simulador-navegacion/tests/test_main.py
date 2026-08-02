@@ -10,6 +10,15 @@ def _route_osrm_sintetica():
     }
 
 
+def _route_osrm_degenerada():
+    """Respuesta OSRM 'valida' (no lanza en consultar_ruta_osrm) pero con una
+    sola coordenada: construir_ruta() la rechaza con ValueError."""
+    return {
+        "geometry": {"coordinates": [[-71.0, -33.0]]},
+        "legs": [{"annotation": {"distance": [], "speed": []}}],
+    }
+
+
 def _config_un_vendedor():
     return {"vendedores": [{
         "codigo": "005", "tipo": "0",
@@ -64,3 +73,23 @@ def test_construir_vendedores_continua_tras_fallo_de_osrm(mock_consultar):
     vendedores = construir_vendedores(_config_dos_vendedores())
     assert len(vendedores) == 1
     assert vendedores[0].codigo == "005"
+
+
+@patch("simulador.main.consultar_ruta_osrm")
+def test_construir_vendedores_continua_tras_fallo_de_construir_ruta(mock_consultar):
+    """
+    Si consultar_ruta_osrm() no lanza pero devuelve datos degenerados que hacen
+    fallar construir_ruta() (p.ej. ValueError por ruta de un solo punto) para
+    el primer vendedor, el segundo vendedor -valido- debe construirse igual:
+    el ValueError no debe abortar el arranque completo.
+    """
+    mock_consultar.side_effect = [
+        _route_osrm_degenerada(),      # Vendor 001 ida: consulta ok, pero construir_ruta lanzara ValueError
+        _route_osrm_degenerada(),      # Vendor 001 vuelta: consulta ok (no se llega a construir_ruta)
+        _route_osrm_sintetica(),       # Vendor 005 ida: succeeds
+        _route_osrm_sintetica(),       # Vendor 005 vuelta: succeeds
+    ]
+    vendedores = construir_vendedores(_config_dos_vendedores())
+    assert len(vendedores) == 1
+    assert vendedores[0].codigo == "005"
+    assert mock_consultar.call_count == 4

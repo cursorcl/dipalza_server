@@ -31,14 +31,16 @@ def construir_vendedores(config: dict) -> list[VendedorSimulacion]:
         try:
             ruta_osrm_ida = consultar_ruta_osrm(inicio, fin)
             ruta_osrm_vuelta = consultar_ruta_osrm(fin, inicio)
-        except RuntimeError as exc:
+            ruta_ida = construir_ruta(ruta_osrm_ida)
+            ruta_vuelta = construir_ruta(ruta_osrm_vuelta)
+        except (RuntimeError, ValueError, KeyError, IndexError) as exc:
             logger.error("Vendedor %s queda inactivo: %s", codigo, exc)
             continue
         vendedores.append(VendedorSimulacion(
             codigo=codigo,
             tipo=datos["tipo"],
-            ruta_ida=construir_ruta(ruta_osrm_ida),
-            ruta_vuelta=construir_ruta(ruta_osrm_vuelta),
+            ruta_ida=ruta_ida,
+            ruta_vuelta=ruta_vuelta,
             rng=random.Random(),
         ))
     return vendedores

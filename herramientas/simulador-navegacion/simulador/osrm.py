@@ -27,7 +27,7 @@ def consultar_ruta_osrm(origen: tuple[float, float], destino: tuple[float, float
             time.sleep(0.5 * (intento + 1))
             continue
 
-        if data.get("code") == "Ok":
+        if data.get("code") == "Ok" and data.get("routes"):
             return data["routes"][0]
 
         ultimo_error = data
