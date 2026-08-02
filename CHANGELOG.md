@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/cursorcl/dipalza_server/compare/v1.4.0...v1.5.0) (2026-08-02)
+
+
+### Features
+
+* simulador de navegación por calles (App 1) ([#15](https://github.com/cursorcl/dipalza_server/issues/15)) ([c4997a9](https://github.com/cursorcl/dipalza_server/commit/c4997a9049cd1078342582b838cba43bd854c810))
+
 # [1.4.0](https://github.com/cursorcl/dipalza_server/compare/v1.3.0...v1.4.0) (2026-08-02)
 
 
