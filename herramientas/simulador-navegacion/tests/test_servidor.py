@@ -6,7 +6,7 @@ import pytest
 
 from simulador.ruta import Ruta, SegmentoRuta
 from simulador.servidor import Simulador
-from simulador.vendedor import VendedorSimulacion
+from simulador.vendedor import EstadoVendedor, VendedorSimulacion
 
 
 class ClienteFalso:
@@ -93,6 +93,39 @@ async def test_tarea_vendedor_emite_ciclo_completo_y_espera_reinicio():
     await asyncio.sleep(0.1)
     eventos = [m for m in cliente.mensajes if m.get("tipo") == "evento"]
     assert any(e["evento"] == "reiniciado" for e in eventos)
+
+    tarea.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await tarea
+
+
+async def test_tarea_vendedor_reinicio_durante_movimiento_corta_de_inmediato():
+    """
+    Si llega el comando de reinicio mientras el vendedor esta EN_MOVIMIENTO
+    (ciclo lejos de completarse), el bucle interno debe cortarse en el
+    siguiente tick sin esperar a CICLO_COMPLETO: debe emitirse 'reiniciado'
+    sin que se haya emitido 'ciclo_completo' antes.
+    """
+    # tiempo_s grande respecto al intervalo de emision: el vendedor no
+    # llegaria a CICLO_COMPLETO por si solo en el tiempo del test.
+    vendedor = _vendedor(codigo="005", tiempo_s=1000.0)
+    simulador = Simulador([vendedor], intervalo_emision_s=0.01)
+    cliente = ClienteFalso()
+    simulador.clientes = {cliente}
+
+    tarea = asyncio.create_task(simulador.tarea_vendedor(vendedor))
+    await asyncio.sleep(0.05)
+    assert vendedor.estado in (EstadoVendedor.EN_MOVIMIENTO, EstadoVendedor.DETENIDO)
+
+    eventos_antes = [m for m in cliente.mensajes if m.get("tipo") == "evento"]
+    assert not any(e["evento"] == "ciclo_completo" for e in eventos_antes)
+
+    simulador.eventos_reinicio["005"].set()
+    await asyncio.sleep(0.05)
+
+    eventos = [m for m in cliente.mensajes if m.get("tipo") == "evento"]
+    assert any(e["evento"] == "reiniciado" for e in eventos)
+    assert not any(e["evento"] == "ciclo_completo" for e in eventos)
 
     tarea.cancel()
     with pytest.raises(asyncio.CancelledError):

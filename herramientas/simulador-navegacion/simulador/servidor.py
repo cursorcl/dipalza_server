@@ -37,11 +37,14 @@ class Simulador:
             evento_reinicio.clear()
             vendedor.iniciar()
             while vendedor.estado != EstadoVendedor.CICLO_COMPLETO:
+                if evento_reinicio.is_set():
+                    break
                 await asyncio.sleep(self.intervalo_emision_s)
                 mensaje = vendedor.avanzar(self.intervalo_emision_s)
                 await self.difundir(mensaje)
-            await self.difundir({"tipo": "evento", "evento": "ciclo_completo", "vendedorCodigo": vendedor.codigo})
-            await evento_reinicio.wait()
+            if vendedor.estado == EstadoVendedor.CICLO_COMPLETO:
+                await self.difundir({"tipo": "evento", "evento": "ciclo_completo", "vendedorCodigo": vendedor.codigo})
+                await evento_reinicio.wait()
             await self.difundir({"tipo": "evento", "evento": "reiniciado", "vendedorCodigo": vendedor.codigo})
 
     async def manejar_cliente(self, websocket) -> None:
