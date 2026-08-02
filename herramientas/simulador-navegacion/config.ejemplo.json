@@ -1,0 +1,14 @@
+{
+  "host": "0.0.0.0",
+  "puerto": 8765,
+  "vendedores": [
+    {
+      "codigo": "005",
+      "tipo": "0",
+      "latInicio": -32.8820,
+      "lonInicio": -71.2489,
+      "latFin": -32.7761,
+      "lonFin": -71.5314
+    }
+  ]
+}
