@@ -76,6 +76,34 @@ CREATE TABLE dbo.ila (
     CONSTRAINT ila_pk PRIMARY KEY (codigo)
 );
 
+CREATE TABLE dbo.parada_vendedor (
+    id             bigint IDENTITY(1,1) NOT NULL,
+    vendedorId     varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
+    vendedorCodigo varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
+    latitud        float NOT NULL,
+    longitud       float NOT NULL,
+    horaInicio     datetime2(0) NOT NULL,
+    horaFin        datetime2(0) NOT NULL,
+    calle          varchar(255) COLLATE Modern_Spanish_CI_AS NOT NULL
+        CONSTRAINT DF_parada_vendedor_calle DEFAULT 'Calle no disponible',
+    CONSTRAINT pk_parada_vendedor PRIMARY KEY (id)
+);
+
+CREATE TABLE dbo.parada_vendedor_grupo_actual (
+    vendedorId          varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
+    vendedorCodigo      varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
+    dia                 date NOT NULL,
+    latitudReferencia   float NOT NULL,
+    longitudReferencia  float NOT NULL,
+    horaInicio          datetime2(0) NOT NULL,
+    horaUltimoPunto     datetime2(0) NOT NULL,
+    sumaLatitud         float NOT NULL,
+    sumaLongitud        float NOT NULL,
+    cantidadPuntos      int NOT NULL,
+    paradaVendedorId    bigint NULL,
+    CONSTRAINT pk_parada_vendedor_grupo_actual PRIMARY KEY (vendedorId, vendedorCodigo)
+);
+
 CREATE TABLE dbo.posicion (
     vendedorId          varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
     vendedorCodigo      varchar(3) COLLATE Modern_Spanish_CI_AS NOT NULL,
@@ -232,6 +260,9 @@ CREATE UNIQUE NONCLUSTERED INDEX configuracion_propiedad_IDX
 
 CREATE NONCLUSTERED INDEX idx_histotial_vendedor_fechaHora
     ON dbo.historial_posicion (vendedorId, fechaHora);
+
+CREATE NONCLUSTERED INDEX idx_parada_vendedor_vendedor_horaInicio
+    ON dbo.parada_vendedor (vendedorId, vendedorCodigo, horaInicio);
 
 CREATE NONCLUSTERED INDEX venta_codigo_vendedor_IDX
     ON dbo.venta (codigo_vendedor, tipo_vendedor);

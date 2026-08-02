@@ -28,6 +28,7 @@ class PosicionServiceTest {
     @Mock HistorialPosicionRepository historialRepo;
     @Mock VendedorRepository vendedorRepo;
     @Mock SimpMessagingTemplate messagingTemplate;
+    @Mock DeteccionParadaService deteccionParadaService;
     @InjectMocks PosicionService service;
 
     private PosicionDTO dto(String vendedorId) {
@@ -97,5 +98,34 @@ class PosicionServiceTest {
         ArgumentCaptor<PosicionDTO> captor = ArgumentCaptor.forClass(PosicionDTO.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/posiciones"), captor.capture());
         assertThat(captor.getValue().vendedorNombre()).isEqualTo("Juan");
+    }
+
+    @Test
+    void registrarUbicacion_invocaDeteccionParadaServiceConLosDatosCorrectos() {
+        PosicionDTO dto = dto("V01");
+        when(vendedorRepo.getReferenceById(any())).thenReturn(new Vendedor());
+        when(posicionRepo.findByVendedorId(any())).thenReturn(null);
+
+        service.registrarUbicacion(dto);
+
+        ArgumentCaptor<VendedorId> idCaptor = ArgumentCaptor.forClass(VendedorId.class);
+        verify(deteccionParadaService).procesarNuevoPunto(
+                idCaptor.capture(), any(Vendedor.class), eq(dto.latitud()), eq(dto.longitud()), eq(dto.fechaHora()));
+        assertThat(idCaptor.getValue().getCodigo()).isEqualTo(dto.vendedorId());
+    }
+
+    @Test
+    void registrarUbicacion_siDeteccionParadaServiceFalla_igualPersisteYNotifica() {
+        PosicionDTO dto = dto("V01");
+        when(vendedorRepo.getReferenceById(any())).thenReturn(new Vendedor());
+        when(posicionRepo.findByVendedorId(any())).thenReturn(null);
+        doThrow(new RuntimeException("fallo simulado"))
+                .when(deteccionParadaService).procesarNuevoPunto(any(), any(), anyDouble(), anyDouble(), any());
+
+        service.registrarUbicacion(dto);
+
+        verify(posicionRepo).save(any());
+        verify(historialRepo).save(any());
+        verify(messagingTemplate).convertAndSend(eq("/topic/posiciones"), any(PosicionDTO.class));
     }
 }

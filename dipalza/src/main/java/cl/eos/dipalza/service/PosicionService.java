@@ -12,6 +12,8 @@ import cl.eos.dipalza.repository.PosicionRepository;
 import cl.eos.dipalza.repository.VendedorRepository;
 import cl.eos.dipalza.specifications.HistorialPosicionSpecifications;
 import cl.eos.dipalza.specifications.PosicionFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,16 +23,20 @@ import java.util.List;
 @Service
 public class PosicionService {
 
+    private static final Logger log = LoggerFactory.getLogger(PosicionService.class);
+
     private final PosicionRepository posicionRepository;
     private final HistorialPosicionRepository historialRepository;
     private final VendedorRepository vendedorRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final DeteccionParadaService deteccionParadaService;
 
-    public PosicionService(PosicionRepository posicionRepository, HistorialPosicionRepository historialRepository, VendedorRepository vendedorRepository, SimpMessagingTemplate messagingTemplate) {
+    public PosicionService(PosicionRepository posicionRepository, HistorialPosicionRepository historialRepository, VendedorRepository vendedorRepository, SimpMessagingTemplate messagingTemplate, DeteccionParadaService deteccionParadaService) {
         this.posicionRepository = posicionRepository;
         this.historialRepository = historialRepository;
         this.vendedorRepository = vendedorRepository;
         this.messagingTemplate = messagingTemplate;
+        this.deteccionParadaService = deteccionParadaService;
     }
 
 
@@ -84,6 +90,12 @@ public class PosicionService {
         historial.setFechaHora(fecha);
         historialRepository.save(historial);
 
+        // 3. Detectar paradas (no debe afectar el registro de posicion si falla)
+        try {
+            deteccionParadaService.procesarNuevoPunto(vendedorId, vendedorRef, lat, lon, fecha);
+        } catch (Exception e) {
+            log.warn("Fallo la deteccion de parada para vendedor {}: no afecta el registro de posicion", vendedorId, e);
+        }
 
         messagingTemplate.convertAndSend("/topic/posiciones", PosicionMapper.toPosicionDTO(posicion));
     }

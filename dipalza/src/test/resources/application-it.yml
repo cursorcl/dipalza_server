@@ -12,3 +12,12 @@ facturacion:
     url: jdbc:sqlserver://192.168.100.102:1433;databaseName=Mastersoft;encrypt=true;trustServerCertificate=true
     username: sa
     password: ${FACTURACION_DB_PASSWORD:_l2j1rs2}
+
+# Los *IT.java corren contra la BD real compartida con un ApplicationContext completo.
+# Sin esto, @EnableScheduling dispara GeocodificacionRetryService.reintentarGeocodificacionPendiente()
+# (initialDelay implicito = 0) apenas el contexto termina de levantar -- llamadas reales a
+# Nominatim y UPDATEs reales sobre parada_vendedor como efecto colateral no declarado por
+# ningun test. Ver SchedulingConfig para el @ConditionalOnProperty correspondiente.
+app:
+  scheduling:
+    enabled: false
