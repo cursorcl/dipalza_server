@@ -1,0 +1,18 @@
+name: Sync Frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_client_version:
+        description: 'Versión de dipalza_web_client recién liberada (ej. v1.2.0)'
+        required: true
+        type: string
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recibir el disparo
+        run: |
+          echo "Sync Frontend disparado para dipalza_web_client ${{ inputs.web_client_version }}"
+          echo "Placeholder: la logica real (build + reemplazo de static/ + apertura de PR) se agrega en un paso posterior."
