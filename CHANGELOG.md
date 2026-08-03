@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/cursorcl/dipalza_server/compare/v1.6.0...v1.7.0) (2026-08-03)
+
+
+### Features
+
+* implementa la lógica real de sincronización del frontend embebido ([#19](https://github.com/cursorcl/dipalza_server/issues/19)) ([c801e98](https://github.com/cursorcl/dipalza_server/commit/c801e98c206dae1f94ad9e9dfa5181f5d67bd5cc))
+
 # [1.6.0](https://github.com/cursorcl/dipalza_server/compare/v1.5.1...v1.6.0) (2026-08-03)
 
 
