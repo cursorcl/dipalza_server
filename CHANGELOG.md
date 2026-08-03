@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/cursorcl/dipalza_server/compare/v1.5.1...v1.6.0) (2026-08-03)
+
+
+### Features
+
+* agrega workflow receptor placeholder para sincronizar el frontend embebido ([#18](https://github.com/cursorcl/dipalza_server/issues/18)) ([4a588db](https://github.com/cursorcl/dipalza_server/commit/4a588dbcaf512e2df6f706f512f22aa882d0ed3d))
+
 ## [1.5.1](https://github.com/cursorcl/dipalza_server/compare/v1.5.0...v1.5.1) (2026-08-02)
 
 
