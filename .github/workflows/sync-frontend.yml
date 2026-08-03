@@ -8,11 +8,99 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Recibir el disparo
+      - name: Checkout dipalza_server
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Checkout dipalza_web_client en ${{ inputs.web_client_version }}
+        uses: actions/checkout@v4
+        with:
+          repository: cursorcl/dipalza_web_client
+          ref: ${{ inputs.web_client_version }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+          path: web_client_checkout
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias del frontend
+        working-directory: web_client_checkout
+        run: npm ci
+
+      - name: Compilar el frontend (configuracion production por defecto)
+        working-directory: web_client_checkout
+        run: npx ng build --output-path=${{ github.workspace }}/frontend-build
+
+      - name: Verificar que la URL de produccion quedo embebida
         run: |
-          echo "Sync Frontend disparado para dipalza_web_client ${{ inputs.web_client_version }}"
-          echo "Placeholder: la logica real (build + reemplazo de static/ + apertura de PR) se agrega en un paso posterior."
+          if ! grep -rl "ventas.dynalias.net" frontend-build/browser/*.js > /dev/null 2>&1; then
+            echo "ERROR: la URL de produccion (ventas.dynalias.net) no aparece en el build. Abortando sin tocar static/." >&2
+            exit 1
+          fi
+          if grep -rl "localhost:8080" frontend-build/browser/*.js > /dev/null 2>&1; then
+            echo "ERROR: el build quedo apuntando a localhost en vez de produccion. Abortando sin tocar static/." >&2
+            exit 1
+          fi
+          echo "OK: URL de produccion confirmada en el build."
+
+      - name: Reemplazar el frontend embebido
+        run: |
+          rm -rf dipalza/src/main/resources/static
+          mkdir -p dipalza/src/main/resources/static
+          cp -r frontend-build/browser/. dipalza/src/main/resources/static/
+          if [ -f frontend-build/3rdpartylicenses.txt ]; then
+            cp frontend-build/3rdpartylicenses.txt dipalza/src/main/resources/static/
+          fi
+          # prerendered-routes.json no se copia: es metadata de build sin uso en este SPA.
+
+      - name: Verificar si hay cambios
+        id: cambios
+        run: |
+          git add dipalza/src/main/resources/static/
+          if git diff --staged --quiet; then
+            echo "hay_cambios=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "hay_cambios=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Java 21
+        if: steps.cambios.outputs.hay_cambios == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Correr tests del backend antes de abrir el PR
+        if: steps.cambios.outputs.hay_cambios == 'true'
+        working-directory: dipalza
+        run: ./mvnw test -Dfrontend.skip=true -q
+
+      - name: Crear rama, commit y PR
+        if: steps.cambios.outputs.hay_cambios == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/sync-frontend-${{ inputs.web_client_version }}"
+          git checkout -b "$BRANCH"
+          git commit -m "fix: actualiza el frontend embebido a dipalza_web_client ${{ inputs.web_client_version }}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "fix: actualiza el frontend embebido a dipalza_web_client ${{ inputs.web_client_version }}" \
+            --body "Sincronización automática disparada por el release \`${{ inputs.web_client_version }}\` de \`dipalza_web_client\` (ver \`docs/frontend-embebido-static.md\`). Tests de backend verificados en verde antes de abrir este PR. Revisar el diff antes de mergear."
+
+      - name: Sin cambios que sincronizar
+        if: steps.cambios.outputs.hay_cambios == 'false'
+        run: echo "El build de dipalza_web_client ${{ inputs.web_client_version }} no produjo cambios respecto al frontend embebido actual -- no se abre PR."

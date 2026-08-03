@@ -5,8 +5,28 @@ dentro de su propio jar: el build compilado de Angular vive commiteado
 directamente en `dipalza/src/main/resources/static/`, y Spring Boot
 empaqueta automáticamente todo `src/main/resources/**` en el jar final.
 
-**No hay ninguna automatización que sincronice ambos repos.** Actualizar
-este contenido es un paso manual:
+## Sincronización automática (desde 2026-08-03)
+
+Al liberar una versión de `dipalza_web_client`, `release.config.js`
+(hook `successCmd` de `@semantic-release/exec`) dispara automáticamente
+el workflow `.github/workflows/sync-frontend.yml` en `dipalza_server`
+vía la API de Actions (`workflow_dispatch` cross-repo, usando el secret
+`RELEASE_TOKEN` — necesita el permiso `Actions: Read and write`, no solo
+`Contents`, para poder disparar workflows en otro repo).
+
+Ese workflow compila `dipalza_web_client` en la versión recién liberada,
+reemplaza `dipalza/src/main/resources/static/`, corre la suite de tests
+del backend, y si hay cambios reales, **abre un PR automáticamente**
+(título `fix:`, para que el merge dispare el release correspondiente de
+`dipalza_server`) — nunca mergea solo, siempre requiere revisión humana.
+
+Si el build no produce diferencias respecto al `static/` actual, no se
+abre ningún PR.
+
+## Actualización manual (fallback / debugging)
+
+Si la automatización falla o hay que investigar un problema, estos son
+los pasos equivalentes a mano:
 
 ```bash
 cd dipalza_web_client
