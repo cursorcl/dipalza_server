@@ -1,3 +1,15 @@
+# [1.8.0](https://github.com/cursorcl/dipalza_server/compare/v1.7.1...v1.8.0) (2026-08-05)
+
+
+### Bug Fixes
+
+* actualiza el frontend embebido a dipalza_web_client v1.4.0 ([#21](https://github.com/cursorcl/dipalza_server/issues/21)) ([f892f16](https://github.com/cursorcl/dipalza_server/commit/f892f16bcc7767b077dd9d731c9d6b780e3be005))
+
+
+### Features
+
+* sirve el APK como archivo estático en /downloads/** ([#22](https://github.com/cursorcl/dipalza_server/issues/22)) ([b43157f](https://github.com/cursorcl/dipalza_server/commit/b43157f56160325d66231a3643e16a5618d02f2e))
+
 ## [1.7.1](https://github.com/cursorcl/dipalza_server/compare/v1.7.0...v1.7.1) (2026-08-03)
 
 
