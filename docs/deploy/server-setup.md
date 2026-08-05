@@ -128,3 +128,35 @@ la `v` internamente para encontrar la carpeta real):
 ```bash
 ssh -p <puerto> deploy-dipalza@<host> "/opt/dipalza-app/scripts/rollback-remote.sh 1.2.3"
 ```
+
+## 11. Setup para el deploy del APK (dipalza_mobile)
+
+Pasos manuales de una sola vez, adicionales a los anteriores, para que
+el workflow `deploy.yml` de `dipalza_mobile` pueda copiar el APK a este
+mismo servidor.
+
+### Crear la carpeta de descargas
+
+```bash
+sudo -u deploy-dipalza mkdir -p /opt/dipalza-app/downloads/releases
+```
+
+### Copiar el script de deploy remoto del APK
+
+```bash
+scp -P <puerto> scripts/deploy-apk-remote.sh \
+  deploy-dipalza@<host>:/opt/dipalza-app/scripts/
+ssh -p <puerto> deploy-dipalza@<host> \
+  "chmod +x /opt/dipalza-app/scripts/deploy-apk-remote.sh"
+```
+
+(`scripts/deploy-apk-remote.sh` vive en el repo `dipalza_mobile`, no en
+este repo — mismo criterio que `deploy-remote.sh`/`rollback-remote.sh`:
+no viaja versionado en cada deploy, se copia a mano cuando cambia.)
+
+### Agregar los secrets en `dipalza_mobile`
+
+En el repo `dipalza_mobile` → Settings → Secrets and variables →
+Actions, agregar los mismos 4 secrets que ya existen en este repo, con
+los mismos valores: `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`,
+`DEPLOY_SSH_PORT` (si aplica), `DEPLOY_SSH_KEY`.

@@ -42,6 +42,7 @@ public class SecurityConfigDevSec {
                         .requestMatchers("/*.js", "/*.css", "/*.ico", "/*.json").permitAll()
                         .requestMatchers("/*.woff", "/*.woff2", "/*.ttf", "/*.eot", "/*.otf").permitAll()
                         .requestMatchers("/assets/**", "/media/**", "/chunk-**").permitAll()
+                        .requestMatchers("/downloads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/rutas", "/ping").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers("/ws-posiciones", "/ws-posiciones/**").permitAll()
