@@ -135,6 +135,20 @@ Pasos manuales de una sola vez, adicionales a los anteriores, para que
 el workflow `deploy.yml` de `dipalza_mobile` pueda copiar el APK a este
 mismo servidor.
 
+**Orden obligatorio: primero `dipalza_server`, después `dipalza_mobile`.**
+`/opt/dipalza-app/downloads/**` solo queda accesible sin login una vez
+que el JAR de `dipalza_server` con `DownloadsStaticConfig` y el permiso
+`permitAll` en `/downloads/**` esté efectivamente desplegado en el
+servidor real (vía el `deploy.yml` de este repo). Si se dispara el
+`deploy.yml` de `dipalza_mobile` por primera vez ANTES de haber
+desplegado ese jar nuevo, la descarga del APK devolverá **401**, no
+404 — el jar viejo todavía corriendo no tiene registrado el
+`ResourceHandler` de `/downloads/**` ni el permiso de seguridad
+correspondiente, así que la ruta cae en `anyRequest().authenticated()`.
+Ese 401 se puede leer erróneamente como una regla de seguridad rota,
+cuando en realidad solo falta completar el deploy de `dipalza_server`
+primero.
+
 ### Crear la carpeta de descargas
 
 ```bash
