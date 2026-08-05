@@ -128,3 +128,49 @@ la `v` internamente para encontrar la carpeta real):
 ```bash
 ssh -p <puerto> deploy-dipalza@<host> "/opt/dipalza-app/scripts/rollback-remote.sh 1.2.3"
 ```
+
+## 11. Setup para el deploy del APK (dipalza_mobile)
+
+Pasos manuales de una sola vez, adicionales a los anteriores, para que
+el workflow `deploy.yml` de `dipalza_mobile` pueda copiar el APK a este
+mismo servidor.
+
+**Orden obligatorio: primero `dipalza_server`, después `dipalza_mobile`.**
+`/opt/dipalza-app/downloads/**` solo queda accesible sin login una vez
+que el JAR de `dipalza_server` con `DownloadsStaticConfig` y el permiso
+`permitAll` en `/downloads/**` esté efectivamente desplegado en el
+servidor real (vía el `deploy.yml` de este repo). Si se dispara el
+`deploy.yml` de `dipalza_mobile` por primera vez ANTES de haber
+desplegado ese jar nuevo, la descarga del APK devolverá **401**, no
+404 — el jar viejo todavía corriendo no tiene registrado el
+`ResourceHandler` de `/downloads/**` ni el permiso de seguridad
+correspondiente, así que la ruta cae en `anyRequest().authenticated()`.
+Ese 401 se puede leer erróneamente como una regla de seguridad rota,
+cuando en realidad solo falta completar el deploy de `dipalza_server`
+primero.
+
+### Crear la carpeta de descargas
+
+```bash
+sudo -u deploy-dipalza mkdir -p /opt/dipalza-app/downloads/releases
+```
+
+### Copiar el script de deploy remoto del APK
+
+```bash
+scp -P <puerto> scripts/deploy-apk-remote.sh \
+  deploy-dipalza@<host>:/opt/dipalza-app/scripts/
+ssh -p <puerto> deploy-dipalza@<host> \
+  "chmod +x /opt/dipalza-app/scripts/deploy-apk-remote.sh"
+```
+
+(`scripts/deploy-apk-remote.sh` vive en el repo `dipalza_mobile`, no en
+este repo — mismo criterio que `deploy-remote.sh`/`rollback-remote.sh`:
+no viaja versionado en cada deploy, se copia a mano cuando cambia.)
+
+### Agregar los secrets en `dipalza_mobile`
+
+En el repo `dipalza_mobile` → Settings → Secrets and variables →
+Actions, agregar los mismos 4 secrets que ya existen en este repo, con
+los mismos valores: `DEPLOY_SSH_HOST`, `DEPLOY_SSH_USER`,
+`DEPLOY_SSH_PORT` (si aplica), `DEPLOY_SSH_KEY`.
