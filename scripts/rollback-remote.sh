@@ -4,7 +4,7 @@ set -euo pipefail
 RAW_VERSION="${1:?Uso: rollback-remote.sh <version-sin-v> (ej. 1.2.3)}"
 BASE="${DEPLOY_BASE:-/opt/dipalza-app}"
 SERVICE="${DEPLOY_SERVICE:-dipalza-app.service}"
-HEALTH_URL="${DEPLOY_HEALTH_URL:-http://localhost:8080/actuator/health}"
+HEALTH_URL="${DEPLOY_HEALTH_URL:-http://localhost:8081/actuator/health}"
 HEALTH_RETRIES="${DEPLOY_HEALTH_RETRIES:-15}"
 
 # Recibe el número de versión sin el prefijo 'v' (más cómodo de teclear a

@@ -24,7 +24,7 @@ spring:
     show-sql: true
     database-platform: org.hibernate.spatial.dialect.sqlserver.SqlServerDialect
 server:
-  port: 8080
+  port: 8081 # puerto interno; nginx expone 8080 solo como redirect a https para clientes móviles legados
   address: 127.0.0.1 # nginx (mismo host) es el único punto de entrada público; evita bypass de CORS/TLS por acceso directo al puerto
   servlet:
     encoding:
