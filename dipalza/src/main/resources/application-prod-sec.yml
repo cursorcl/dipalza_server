@@ -25,6 +25,7 @@ spring:
     database-platform: org.hibernate.spatial.dialect.sqlserver.SqlServerDialect
 server:
   port: 8080
+  address: 127.0.0.1 # nginx (mismo host) es el único punto de entrada público; evita bypass de CORS/TLS por acceso directo al puerto
   servlet:
     encoding:
       charset: UTF-8
