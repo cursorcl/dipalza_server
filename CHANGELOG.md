@@ -1,3 +1,10 @@
+## [1.8.7](https://github.com/cursorcl/dipalza_server/compare/v1.8.6...v1.8.7) (2026-08-07)
+
+
+### Bug Fixes
+
+* persiste el puerto interno 8081 en el código de despliegue ([#30](https://github.com/cursorcl/dipalza_server/issues/30)) ([649040e](https://github.com/cursorcl/dipalza_server/commit/649040e0b3b24bbb50437d7807209f90d2e9b651))
+
 ## [1.8.6](https://github.com/cursorcl/dipalza_server/compare/v1.8.5...v1.8.6) (2026-08-07)
 
 
