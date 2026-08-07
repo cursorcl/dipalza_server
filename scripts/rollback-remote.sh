@@ -5,7 +5,7 @@ RAW_VERSION="${1:?Uso: rollback-remote.sh <version-sin-v> (ej. 1.2.3)}"
 BASE="${DEPLOY_BASE:-/opt/dipalza-app}"
 SERVICE="${DEPLOY_SERVICE:-dipalza-app.service}"
 HEALTH_URL="${DEPLOY_HEALTH_URL:-http://localhost:8081/actuator/health}"
-HEALTH_RETRIES="${DEPLOY_HEALTH_RETRIES:-15}"
+HEALTH_RETRIES="${DEPLOY_HEALTH_RETRIES:-60}"
 
 # Recibe el número de versión sin el prefijo 'v' (más cómodo de teclear a
 # mano en una emergencia); las carpetas de release en el servidor sí usan
