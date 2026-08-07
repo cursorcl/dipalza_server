@@ -1,3 +1,10 @@
+## [1.8.5](https://github.com/cursorcl/dipalza_server/compare/v1.8.4...v1.8.5) (2026-08-07)
+
+
+### Bug Fixes
+
+* restringe el puerto 8080 a localhost en producción ([#28](https://github.com/cursorcl/dipalza_server/issues/28)) ([666b994](https://github.com/cursorcl/dipalza_server/commit/666b994190145250bc856942119de49db9ffa6a6))
+
 ## [1.8.4](https://github.com/cursorcl/dipalza_server/compare/v1.8.3...v1.8.4) (2026-08-07)
 
 
