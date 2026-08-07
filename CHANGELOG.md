@@ -1,3 +1,10 @@
+## [1.8.8](https://github.com/cursorcl/dipalza_server/compare/v1.8.7...v1.8.8) (2026-08-07)
+
+
+### Bug Fixes
+
+* aumenta HEALTH_RETRIES de 15 a 60 segundos ([#31](https://github.com/cursorcl/dipalza_server/issues/31)) ([5d24a32](https://github.com/cursorcl/dipalza_server/commit/5d24a32cf58e1af4df858006aab04b2201f6efb3))
+
 ## [1.8.7](https://github.com/cursorcl/dipalza_server/compare/v1.8.6...v1.8.7) (2026-08-07)
 
 
