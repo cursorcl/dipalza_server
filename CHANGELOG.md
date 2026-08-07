@@ -1,3 +1,10 @@
+## [1.8.2](https://github.com/cursorcl/dipalza_server/compare/v1.8.1...v1.8.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* **db:** corrige drift entre deploy_desde_cero y el esquema real de Mastersoft/ventas ([#24](https://github.com/cursorcl/dipalza_server/issues/24)) ([5b17fae](https://github.com/cursorcl/dipalza_server/commit/5b17fae0793c2cfe418770e29b69082884d42d89))
+
 ## [1.8.1](https://github.com/cursorcl/dipalza_server/compare/v1.8.0...v1.8.1) (2026-08-06)
 
 
