@@ -1,3 +1,10 @@
+## [1.8.3](https://github.com/cursorcl/dipalza_server/compare/v1.8.2...v1.8.3) (2026-08-07)
+
+
+### Bug Fixes
+
+* corrige CORS que bloqueaba la app en producción ([#26](https://github.com/cursorcl/dipalza_server/issues/26)) ([0069cde](https://github.com/cursorcl/dipalza_server/commit/0069cde7110cfe415bb7892c63a6b0ca3c92ab08))
+
 ## [1.8.2](https://github.com/cursorcl/dipalza_server/compare/v1.8.1...v1.8.2) (2026-08-07)
 
 
