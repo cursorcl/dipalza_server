@@ -5,7 +5,7 @@ VERSION="${1:?Uso: deploy-remote.sh <version>}"
 BASE="${DEPLOY_BASE:-/opt/dipalza-app}"
 SERVICE="${DEPLOY_SERVICE:-dipalza-app.service}"
 HEALTH_URL="${DEPLOY_HEALTH_URL:-http://localhost:8081/actuator/health}"
-HEALTH_RETRIES="${DEPLOY_HEALTH_RETRIES:-15}"
+HEALTH_RETRIES="${DEPLOY_HEALTH_RETRIES:-60}"
 KEEP_RELEASES=3
 
 RELEASE_DIR="$BASE/releases/$VERSION"
