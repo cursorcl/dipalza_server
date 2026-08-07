@@ -69,6 +69,7 @@ BEGIN TRY
         0 AS stockVentas,
         0 AS piezasVentas,
         0 AS costo                                                     -- TODO: origen real no identificado
+                                                                        -- (PrecioLista2 no va aquí: se completa más abajo desde Mastersoft.PRECIOS)
     FROM Mastersoft.dbo.ARTICULO a
     LEFT JOIN Mastersoft.dbo.articulosnumerados an
         ON an.Articulo = a.Articulo COLLATE Modern_Spanish_CI_AS;
@@ -85,33 +86,33 @@ BEGIN TRY
        AND la.Rol = 'S';
 
     -- ---- Clientes (Mastersoft.msoclientes) ----------------------------------
-    -- TODO: verificar nombre real de cada columna en msoclientes; se asume
-    --       el mismo nombre que la columna destino como punto de partida.
+    -- Nombres de columna verificados contra Mastersoft.dbo.msoclientes real:
+    -- Ruta y Vendedor (no codigo_ruta/codigo_vendedor); el resto coincide 1:1.
     INSERT INTO dbo.cliente (rut, codigo, razon, direccion, ciudad, giro, telefono, codigo_ruta, codigo_vendedor)
     SELECT
-        rut,             -- TODO: verificar nombre real de columna en msoclientes
-        codigo,          -- TODO: verificar nombre real de columna en msoclientes
-        razon,           -- TODO: verificar nombre real de columna en msoclientes
-        direccion,       -- TODO: verificar nombre real de columna en msoclientes
-        ciudad,          -- TODO: verificar nombre real de columna en msoclientes
-        giro,            -- TODO: verificar nombre real de columna en msoclientes
-        telefono,        -- TODO: verificar nombre real de columna en msoclientes
-        codigo_ruta,     -- TODO: verificar nombre real de columna en msoclientes
-        codigo_vendedor  -- TODO: verificar nombre real de columna en msoclientes
+        rut,
+        codigo,
+        razon,
+        direccion,
+        ciudad,
+        giro,
+        telefono,
+        Ruta,
+        Vendedor
     FROM Mastersoft.dbo.msoclientes;
 
     -- ---- Vendedores (Mastersoft.msovendedor) --------------------------------
-    -- TODO: verificar nombre real de cada columna en msovendedor.
+    -- Nombres de columna verificados contra Mastersoft.dbo.msovendedor real: coinciden 1:1.
     INSERT INTO dbo.vendedor (rut, codigo, tipo, nombre, ciudad, comuna, direccion, telefono)
     SELECT
-        rut,        -- TODO: verificar nombre real de columna en msovendedor
-        codigo,     -- TODO: verificar nombre real de columna en msovendedor
-        tipo,       -- TODO: verificar nombre real de columna en msovendedor
-        nombre,     -- TODO: verificar nombre real de columna en msovendedor
-        ciudad,     -- TODO: verificar nombre real de columna en msovendedor
-        comuna,     -- TODO: verificar nombre real de columna en msovendedor
-        direccion,  -- TODO: verificar nombre real de columna en msovendedor
-        telefono    -- TODO: verificar nombre real de columna en msovendedor
+        rut,
+        codigo,
+        tipo,
+        nombre,
+        ciudad,
+        comuna,
+        direccion,
+        telefono
     FROM Mastersoft.dbo.msovendedor;
 
     -- vendedor_ruta: NO se puebla (confirmado). La asignación de rutas a

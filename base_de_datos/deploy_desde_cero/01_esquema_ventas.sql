@@ -20,6 +20,8 @@ CREATE TABLE dbo.app_user (
     locked     bit  NOT NULL DEFAULT 0,
     created_at date NOT NULL DEFAULT CONVERT(date, SYSUTCDATETIME()),
     updated_at date NOT NULL DEFAULT CONVERT(date, SYSUTCDATETIME()),
+    codigo_vendedor varchar(3) COLLATE Modern_Spanish_CI_AS NULL,  -- [DRIFT] existe en producción pero no estaba en install_dipalza_sync.sql; vincula la cuenta de login a un vendedor
+    tipo_vendedor   varchar(1) COLLATE Modern_Spanish_CI_AS NULL,  -- [DRIFT] idem
     CONSTRAINT PK_app_user PRIMARY KEY (id),
     CONSTRAINT UQ_app_user_username UNIQUE (username)
 );
@@ -161,6 +163,11 @@ CREATE TABLE dbo.vendedor_ruta (
     CONSTRAINT FK_vendedor_ruta_ruta FOREIGN KEY (codigo_ruta) REFERENCES dbo.ruta(codigo)
 );
 
+-- [DRIFT] fk_vendedor_user existe en producción pero no estaba en install_dipalza_sync.sql
+ALTER TABLE dbo.app_user
+    ADD CONSTRAINT fk_vendedor_user FOREIGN KEY (codigo_vendedor, tipo_vendedor)
+        REFERENCES dbo.vendedor(codigo, tipo);
+
 CREATE TABLE dbo.app_refresh_token (
     id         bigint IDENTITY(1,1) NOT NULL,
     user_id    bigint NOT NULL,
@@ -200,7 +207,7 @@ CREATE TABLE dbo.venta (
     rut_cliente     varchar(10) COLLATE Modern_Spanish_CI_AS NOT NULL,
     codigo_cliente  varchar(3)  COLLATE Modern_Spanish_CI_AS NOT NULL,
     codigo_vendedor varchar(3)  COLLATE Modern_Spanish_CI_AS NOT NULL,
-    tipo_vendedor   varchar(1)  COLLATE Modern_Spanish_CI_AS NOT NULL,
+    tipo_vendedor   varchar(3)  COLLATE Modern_Spanish_CI_AS NOT NULL,  -- [DRIFT] varchar(3) en producción, no varchar(1) como en install_dipalza_sync.sql
     fecha           datetime NOT NULL,
     codigo_ruta     varchar(10) COLLATE Modern_Spanish_CI_AS NOT NULL,
     total_descuento money NULL,
@@ -216,9 +223,10 @@ CREATE TABLE dbo.venta (
     CONSTRAINT venta_condicionventa_FK FOREIGN KEY (condicion_venta)
         REFERENCES dbo.condicionventa(codigo) ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT venta_ruta_FK FOREIGN KEY (codigo_ruta)
-        REFERENCES dbo.ruta(codigo),
-    CONSTRAINT venta_vendedor_FK FOREIGN KEY (codigo_vendedor, tipo_vendedor)
-        REFERENCES dbo.vendedor(codigo, tipo)
+        REFERENCES dbo.ruta(codigo)
+    -- [DRIFT] no existe venta_vendedor_FK en producción: codigo_vendedor/tipo_vendedor
+    -- no tienen FK hacia dbo.vendedor (tipo_vendedor es varchar(3) ahí, no varchar(1)
+    -- como vendedor.tipo, así que un FK con igual longitud no podría existir).
 );
 
 CREATE TABLE dbo.venta_detalle (
