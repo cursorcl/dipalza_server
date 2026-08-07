@@ -1,3 +1,10 @@
+## [1.8.6](https://github.com/cursorcl/dipalza_server/compare/v1.8.5...v1.8.6) (2026-08-07)
+
+
+### Bug Fixes
+
+* usa un login de BD dedicado en vez de sa ([#29](https://github.com/cursorcl/dipalza_server/issues/29)) ([7e1116b](https://github.com/cursorcl/dipalza_server/commit/7e1116bc9a25f63b5303c0df867f6411e8215b1d))
+
 ## [1.8.5](https://github.com/cursorcl/dipalza_server/compare/v1.8.4...v1.8.5) (2026-08-07)
 
 
