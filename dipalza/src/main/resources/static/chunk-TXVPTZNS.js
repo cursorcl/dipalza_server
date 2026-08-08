@@ -1,1 +1,0 @@
-import"./chunk-EQDQRRRY.js";var t=[{path:"",loadComponent:()=>import("./chunk-HXTXBBLD.js").then(o=>o.ListadoNumeradosComponent)},{path:"detalle-numerado",loadComponent:()=>import("./chunk-SMCV2KR3.js").then(o=>o.ListadoNumeradosDeUnProductoComponent)}];export{t as NUMERADOS_ROUTES};
