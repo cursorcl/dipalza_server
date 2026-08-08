@@ -1,0 +1,44 @@
+<!--
+  Config de WinSW para correr el jar como Windows Service -- reemplazo
+  directo del unit file systemd dipalza-app.service (que no vive en este
+  repo, solo se documenta en docs/deploy/server-setup.md).
+
+  Uso: descargar WinSW (https://github.com/winsw/winsw/releases), copiarlo
+  a C:\dipalza-app\ como dipalza-app.exe, y este archivo junto a él como
+  dipalza-app.xml. Luego: dipalza-app.exe install && dipalza-app.exe start
+
+  Las variables DB_PASSWORD / JWT_SECRET / FACTURACION_DB_PASSWORD /
+  MAIL_USERNAME / MAIL_PASSWORD deben existir como variables de entorno
+  de MÁQUINA (setx /M, o Panel de control > Variables de entorno) antes
+  de instalar el servicio -- igual que hoy en Linux, donde no viajan
+  versionadas: WinSW expande %VAR% desde el entorno del proceso que
+  arranca el servicio, no desde este XML.
+-->
+<service>
+  <id>dipalza-app</id>
+  <name>Dipalza App</name>
+  <description>Backend Dipalza (Spring Boot)</description>
+
+  <executable>java</executable>
+  <arguments>-jar "C:\dipalza-app\current\dipalza.jar"</arguments>
+  <workingdirectory>C:\dipalza-app\current</workingdirectory>
+
+  <env name="DB_PASSWORD" value="%DB_PASSWORD%"/>
+  <env name="JWT_SECRET" value="%JWT_SECRET%"/>
+  <env name="FACTURACION_DB_PASSWORD" value="%FACTURACION_DB_PASSWORD%"/>
+  <env name="MAIL_USERNAME" value="%MAIL_USERNAME%"/>
+  <env name="MAIL_PASSWORD" value="%MAIL_PASSWORD%"/>
+  <env name="SPRING_PROFILES_ACTIVE" value="prod-sec"/>
+
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+
+  <!-- Igual que Restart=on-failure en el unit file systemd -->
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <resetfailure>1 hour</resetfailure>
+
+  <stoptimeout>30 sec</stoptimeout>
+</service>
