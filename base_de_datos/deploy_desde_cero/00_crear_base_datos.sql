@@ -24,7 +24,7 @@
      - [ventas] NO debe existir todavía (este script la crea).
 
    ORDEN DE EJECUCIÓN (archivos de esta carpeta)
-     00_crear_base_datos.sql          -> crea [ventas]
+     00_crear_base_datos.sql          -> crea [ventas] + login dipalza_app (con acceso a [ventas] y [Mastersoft])
      01_esquema_ventas.sql            -> esquema completo + seed de roles
      02_listaprecioactiva_fuente.sql  -> ListaPrecioActiva fuente + triggers en [ventas]
      03_colas_triggers_mastersoft.sql -> colas + triggers + procesador inverso en [Mastersoft]
@@ -58,4 +58,46 @@ GO
 
 CREATE DATABASE ventas
     COLLATE Modern_Spanish_CI_AS;
+GO
+
+/* ---- Login dedicado de la app (en vez de sa) --------------------------
+   Reemplaza CAMBIAR_ESTA_CLAVE por una clave real antes de ejecutar, y
+   configura esa misma clave como DB_PASSWORD / FACTURACION_DB_PASSWORD
+   en el servidor de la app (mismo patrón que JWT_SECRET: se setea directo
+   en el servidor, no vía GitHub Actions). ------------------------------- */
+USE master;
+GO
+
+IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'dipalza_app')
+BEGIN
+    RAISERROR (N'El login [dipalza_app] ya existe. Este script asume una instalación desde cero; abortando para no pisar un login existente.', 16, 1);
+END
+GO
+
+CREATE LOGIN dipalza_app
+    WITH PASSWORD = N'CAMBIAR_ESTA_CLAVE',
+    CHECK_POLICY = ON,
+    CHECK_EXPIRATION = OFF;
+GO
+
+USE ventas;
+GO
+
+CREATE USER dipalza_app FOR LOGIN dipalza_app;
+GO
+
+ALTER ROLE db_datareader ADD MEMBER dipalza_app;
+ALTER ROLE db_datawriter ADD MEMBER dipalza_app;
+GRANT CONNECT TO dipalza_app;
+GO
+
+USE Mastersoft;
+GO
+
+CREATE USER dipalza_app FOR LOGIN dipalza_app;
+GO
+
+ALTER ROLE db_datareader ADD MEMBER dipalza_app;
+ALTER ROLE db_datawriter ADD MEMBER dipalza_app;
+GRANT CONNECT TO dipalza_app;
 GO
