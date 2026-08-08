@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/cursorcl/dipalza_server/compare/v1.9.1...v1.10.0) (2026-08-08)
+
+
+### Features
+
+* **db:** agrega login dipalza_app a deploy_desde_cero ([#35](https://github.com/cursorcl/dipalza_server/issues/35)) ([edd9b29](https://github.com/cursorcl/dipalza_server/commit/edd9b29952c736a21fb642d8f79cbef52e5668fd))
+
 ## [1.9.1](https://github.com/cursorcl/dipalza_server/compare/v1.9.0...v1.9.1) (2026-08-08)
 
 
