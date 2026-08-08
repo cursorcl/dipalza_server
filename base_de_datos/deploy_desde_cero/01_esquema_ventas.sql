@@ -1,6 +1,7 @@
 /* ============================================================================
    SECCIÓN 1 — ESQUEMA DE LA BASE [ventas] + DATOS SEMILLA
-   (consolida migration_20260217.sql, migration_20260529.sql y users.sql)
+   (consolida migration_20260217.sql, migration_20260529.sql, users.sql
+   y migration_20260808.sql)
    ============================================================================ */
 USE ventas;
 GO
