@@ -22,8 +22,10 @@ CREATE TABLE dbo.app_user (
     updated_at date NOT NULL DEFAULT CONVERT(date, SYSUTCDATETIME()),
     codigo_vendedor varchar(3) COLLATE Modern_Spanish_CI_AS NULL,  -- [DRIFT] existe en producción pero no estaba en install_dipalza_sync.sql; vincula la cuenta de login a un vendedor
     tipo_vendedor   varchar(1) COLLATE Modern_Spanish_CI_AS NULL,  -- [DRIFT] idem
+    email           varchar(255) COLLATE Modern_Spanish_CI_AS NULL,  -- agregada en migration_20260808.sql, para recuperación de clave por correo
     CONSTRAINT PK_app_user PRIMARY KEY (id),
-    CONSTRAINT UQ_app_user_username UNIQUE (username)
+    CONSTRAINT UQ_app_user_username UNIQUE (username),
+    CONSTRAINT UQ_app_user_email UNIQUE (email)
 );
 
 CREATE TABLE dbo.cliente (
@@ -178,6 +180,19 @@ CREATE TABLE dbo.app_refresh_token (
     CONSTRAINT PK_app_refresh_token PRIMARY KEY (id),
     CONSTRAINT UQ_app_refresh_token UNIQUE (user_id, token_hash),
     CONSTRAINT FK_app_refresh_token_user FOREIGN KEY (user_id) REFERENCES dbo.app_user(id)
+);
+
+-- agregada en migration_20260808.sql, para recuperación de clave por correo
+CREATE TABLE dbo.app_password_reset_token (
+    id         bigint IDENTITY(1,1) NOT NULL,
+    user_id    bigint NOT NULL,
+    token_hash varchar(200) COLLATE Modern_Spanish_CI_AS NOT NULL,
+    expires_at datetime NOT NULL,
+    used       bit NOT NULL DEFAULT 0,
+    created_at datetime NOT NULL DEFAULT GETDATE(),
+    CONSTRAINT PK_app_password_reset_token PRIMARY KEY (id),
+    CONSTRAINT UQ_app_password_reset_token UNIQUE (user_id, token_hash),
+    CONSTRAINT FK_app_password_reset_token_user FOREIGN KEY (user_id) REFERENCES dbo.app_user(id)
 );
 
 CREATE TABLE dbo.app_user_roles (

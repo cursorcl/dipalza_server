@@ -1,14 +1,18 @@
 package cl.eos.dipalza.controller;
 
 import cl.eos.dipalza.entity.AppUser;
+import cl.eos.dipalza.entity.PasswordResetToken;
 import cl.eos.dipalza.entity.RefreshToken;
 import cl.eos.dipalza.entity.Vendedor;
 import cl.eos.dipalza.mapper.VendedorMapper;
 import cl.eos.dipalza.model.VendedorDTO;
+import cl.eos.dipalza.repository.PasswordResetTokenRepo;
 import cl.eos.dipalza.repository.RefreshTokenRepo;
 import cl.eos.dipalza.repository.UserRepo;
 import cl.eos.dipalza.repository.VendedorRepository;
+import cl.eos.dipalza.service.EmailService;
 import cl.eos.dipalza.service.JwtService;
+import cl.eos.dipalza.service.RefreshTokenService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -22,22 +26,35 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/auth")
 @Profile({"dev-sec","prod-sec"})
 public class AuthController {
 
+	private static final long RESET_TOKEN_MINUTOS = 30;
+	private static final int CLAVE_LARGO_MINIMO = 8;
+	private static final long RESET_RATE_LIMIT_SEGUNDOS = 60;
+
 	private final UserRepo users;
 	private final PasswordEncoder enc;
 	private final JwtService jwt;
 	private final RefreshTokenRepo refreshTokenRepo;
 	private final VendedorRepository vendedorRepo;
+	private final PasswordResetTokenRepo resetTokenRepo;
+	private final EmailService emailService;
+	private final RefreshTokenService refreshTokenService;
+	private final SecureRandom secureRandom = new SecureRandom();
+	// Throttle simple en memoria contra fuerza bruta / spam de correos;
+	// alcanza para el volumen de esta app, no requiere infraestructura externa.
+	private final ConcurrentHashMap<String, Instant> ultimaSolicitudPorUsername = new ConcurrentHashMap<>();
 	@Value("${security.jwt.refresh-hr}")
 	long refreshHr;
 
@@ -46,17 +63,28 @@ public class AuthController {
 
 	public record TokenResponse(String accessToken, String refreshToken, long expiresInSeconds, VendedorDTO vendedor) {
 	}
-	
+
 
 	public record WebLoginRes(String token, String refreshToken, long expiresInSeconds, long id, String username, String firstName, String lastName ) {
 	}
 
-	public AuthController(UserRepo users, VendedorRepository vendedorRepo, PasswordEncoder enc, JwtService jwt, RefreshTokenRepo rtRepo) {
+	public record ForgotPasswordReq(String usernameOrEmail) {
+	}
+
+	public record ResetPasswordReq(String username, String codigo, String claveNueva) {
+	}
+
+	public AuthController(UserRepo users, VendedorRepository vendedorRepo, PasswordEncoder enc, JwtService jwt,
+			RefreshTokenRepo rtRepo, PasswordResetTokenRepo resetTokenRepo, EmailService emailService,
+			RefreshTokenService refreshTokenService) {
 		this.users = users;
 		this.enc = enc;
 		this.jwt = jwt;
 		this.refreshTokenRepo = rtRepo;
 		this.vendedorRepo = vendedorRepo;
+		this.resetTokenRepo = resetTokenRepo;
+		this.emailService = emailService;
+		this.refreshTokenService = refreshTokenService;
 	}
 
 	@PostMapping("/login")
@@ -202,6 +230,60 @@ public class AuthController {
 	}
 	
 	
+	@PostMapping("/forgot-password")
+	public void forgotPassword(@RequestBody ForgotPasswordReq req) {
+		String clave = req.usernameOrEmail() == null ? "" : req.usernameOrEmail().trim();
+
+		Optional<AppUser> userOpt = clave.contains("@") ? users.findByEmail(clave) : users.findByUsername(clave);
+
+		// Responde siempre igual, exista o no el usuario/correo, para no filtrar
+		// qué cuentas están registradas.
+		if (userOpt.isEmpty() || userOpt.get().getEmail() == null)
+			return;
+
+		AppUser u = userOpt.get();
+
+		Instant ultima = ultimaSolicitudPorUsername.get(u.getUsername());
+		if (ultima != null && ultima.isAfter(Instant.now().minusSeconds(RESET_RATE_LIMIT_SEGUNDOS)))
+			return;
+		ultimaSolicitudPorUsername.put(u.getUsername(), Instant.now());
+
+		String codigo = String.format("%06d", secureRandom.nextInt(1_000_000));
+
+		var token = new PasswordResetToken();
+		token.setUser(u);
+		token.setTokenHash(hashToken(codigo));
+		token.setExpiresAt(Instant.now().plus(RESET_TOKEN_MINUTOS, ChronoUnit.MINUTES));
+		resetTokenRepo.save(token);
+
+		emailService.enviarCodigoRecuperacionClave(u.getEmail(), codigo);
+	}
+
+	@PostMapping("/reset-password")
+	public void resetPassword(@RequestBody ResetPasswordReq req) {
+		var u = users.findByUsername(req.username())
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código inválido o vencido"));
+
+		var token = resetTokenRepo.findByTokenHashAndUsedFalse(hashToken(req.codigo()))
+				.filter(t -> t.getUser().getId().equals(u.getId()))
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código inválido o vencido"));
+
+		if (!token.getExpiresAt().isAfter(Instant.now()))
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código inválido o vencido");
+
+		if (req.claveNueva() == null || req.claveNueva().length() < CLAVE_LARGO_MINIMO)
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+					"La clave nueva debe tener al menos " + CLAVE_LARGO_MINIMO + " caracteres");
+
+		token.setUsed(true);
+		resetTokenRepo.save(token);
+
+		u.setPassword(enc.encode(req.claveNueva()));
+		users.save(u);
+
+		refreshTokenService.revocarTokensDeUsuario(u);
+	}
+
 	private String hashToken(String token) {
 	    try {
 	        MessageDigest digest = MessageDigest.getInstance("SHA-256");
