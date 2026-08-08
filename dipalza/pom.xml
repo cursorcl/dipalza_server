@@ -11,7 +11,7 @@
 	</parent>
 	<groupId>cl.eos</groupId>
 	<artifactId>dipalza</artifactId>
-	<version>1.8.8</version>
+	<version>1.9.0</version>
 	<name>dipalza</name>
 	<description>Demo project for Spring Boot</description>
 	<url />

@@ -1,3 +1,10 @@
+# [1.9.0](https://github.com/cursorcl/dipalza_server/compare/v1.8.8...v1.9.0) (2026-08-08)
+
+
+### Features
+
+* agrega cambio de clave autenticado y recuperación por correo ([#32](https://github.com/cursorcl/dipalza_server/issues/32)) ([d0a3927](https://github.com/cursorcl/dipalza_server/commit/d0a39273a9cf697368dd4d44b815aace9f9d0690))
+
 ## [1.8.8](https://github.com/cursorcl/dipalza_server/compare/v1.8.7...v1.8.8) (2026-08-07)
 
 
