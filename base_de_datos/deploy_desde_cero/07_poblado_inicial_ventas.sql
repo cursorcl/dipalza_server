@@ -139,6 +139,19 @@ BEGIN TRY
         ON p.Articulo = n.articulo COLLATE Modern_Spanish_CI_AS
     WHERE LTRIM(RTRIM(n.articulo)) <> '';
 
+    -- ---- Piezas por producto (cuenta de dbo.numerados por artículo) --------
+    -- Confirmado por el usuario el 2026-08-09: la columna a llenar es
+    -- producto.pieces (no stockVentas ni piezasVentas, esas quedan en su
+    -- default 0). Debe ejecutarse después del INSERT de numerados de arriba.
+    UPDATE p
+       SET p.pieces = pp.piezas
+    FROM dbo.producto p
+    INNER JOIN (
+        SELECT articulo, COUNT(*) AS piezas
+        FROM dbo.numerados
+        GROUP BY articulo
+    ) pp ON pp.articulo = p.Articulo COLLATE Modern_Spanish_CI_AS;
+
     -- ---- Clientes (Mastersoft.msoclientes) ----------------------------------
     -- Nombres de columna verificados contra Mastersoft.dbo.msoclientes real:
     -- Ruta y Vendedor (no codigo_ruta/codigo_vendedor); el resto coincide 1:1.
