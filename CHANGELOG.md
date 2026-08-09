@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/cursorcl/dipalza_server/compare/v1.10.0...v1.10.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* completa el poblado inicial de deploy_desde_cero y corrige AUTO_CLOSE de Mastersoft ([#38](https://github.com/cursorcl/dipalza_server/issues/38)) ([85b2381](https://github.com/cursorcl/dipalza_server/commit/85b23818c13936fe1aab361e4f1d259eaa62afe5))
+
 # [1.10.0](https://github.com/cursorcl/dipalza_server/compare/v1.9.1...v1.10.0) (2026-08-08)
 
 
