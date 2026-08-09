@@ -7,6 +7,9 @@
 USE ventas;
 GO
 
+SET QUOTED_IDENTIFIER ON;
+GO
+
 CREATE TABLE dbo.app_role (
     id   bigint IDENTITY(1,1) NOT NULL,
     name varchar(50) COLLATE Modern_Spanish_CI_AS NOT NULL,
@@ -26,9 +29,20 @@ CREATE TABLE dbo.app_user (
     tipo_vendedor   varchar(1) COLLATE Modern_Spanish_CI_AS NULL,  -- [DRIFT] idem
     email           varchar(255) COLLATE Modern_Spanish_CI_AS NULL,  -- agregada en migration_20260808.sql, para recuperación de clave por correo
     CONSTRAINT PK_app_user PRIMARY KEY (id),
-    CONSTRAINT UQ_app_user_username UNIQUE (username),
-    CONSTRAINT UQ_app_user_email UNIQUE (email)
+    CONSTRAINT UQ_app_user_username UNIQUE (username)
 );
+GO
+
+-- Índice único FILTRADO (no constraint UNIQUE simple): SQL Server trata
+-- NULL como valor único en un UNIQUE constraint/índice normal, y la
+-- mayoría de los usuarios quedan con email=NULL hasta que se les cargue
+-- uno — un UNIQUE(email) sin filtro falla con "duplicate key (NULL)"
+-- apenas hay más de un usuario sin correo. Confirmado el 2026-08-09 al
+-- aplicar migration_20260808.sql en producción con esta misma corrección.
+CREATE UNIQUE NONCLUSTERED INDEX UQ_app_user_email
+    ON dbo.app_user(email)
+    WHERE email IS NOT NULL;
+GO
 
 CREATE TABLE dbo.cliente (
     rut             varchar(10) COLLATE Modern_Spanish_CI_AS NOT NULL,
