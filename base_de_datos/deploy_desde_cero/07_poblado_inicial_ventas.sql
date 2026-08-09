@@ -44,10 +44,43 @@ BEGIN TRY
     FROM Mastersoft.dbo.msosttablas
     WHERE tabla = '004';
 
+    -- ---- Configuración (copia exacta de lo que hay hoy en [ventas] de
+    --      producción, confirmado por el usuario el 2026-08-09; no existe
+    --      fuente equivalente en Mastersoft, son parámetros propios de la
+    --      app). Si estos valores cambian en producción, actualizar aquí. --
+    INSERT INTO dbo.configuracion (propiedad, valor, tipo, descripcion) VALUES
+        ('FACTURA_ELECTRONICA', 'true', 'BOOLEAN', 'Se usa o no factura electrónica'),
+        ('NUMERO_LINEAS_FACTURA', '25', 'INTEGER', 'Número de líneas en una factura');
+
+    -- ---- Stock inicial (Mastersoft.invdetallepartes + detalledocumento) ----
+    -- Traducción a T-SQL de la fórmula histórica (Java, SincronizacionMMI.
+    -- getProductos(), confirmada por el usuario el 2026-08-09) — la misma
+    -- que ya usan los triggers de 03 para las variaciones futuras
+    -- (trg_invdetallepartes_stockresumen / trg_detalledocumento_stockresumen):
+    -- tipoid 17 suma, 18 resta (invdetallepartes, Local='000'); tipoid 09 suma,
+    -- 06/10 restan (detalledocumento, vigente=1, local='000'). Sin piso en 0
+    -- (decisión explícita del usuario): puede dar stock negativo si el
+    -- histórico de Mastersoft lo tiene así.
+    ;WITH stock_partes AS (
+        SELECT i.articulo,
+               SUM(CASE WHEN i.Tipoid = 17 THEN i.cantidad
+                        WHEN i.Tipoid = 18 THEN -i.cantidad ELSE 0 END) AS delta
+        FROM Mastersoft.dbo.invdetallepartes i
+        INNER JOIN Mastersoft.dbo.invencabezapartes e ON i.Id = e.Id
+        WHERE i.Local = '000' AND i.Tipoid IN (17,18)
+        GROUP BY i.articulo
+    ),
+    stock_documentos AS (
+        SELECT d.articulo,
+               SUM(CASE WHEN d.tipoid = '09' THEN d.cantidad
+                        WHEN d.tipoid IN ('06','10') THEN -d.cantidad ELSE 0 END) AS delta
+        FROM Mastersoft.dbo.detalledocumento d
+        INNER JOIN Mastersoft.dbo.encabezadocumento e ON d.id = e.id
+        WHERE d.local = '000' AND e.vigente = 1 AND d.tipoid IN ('09','06','10')
+        GROUP BY d.articulo
+    )
+
     -- ---- Productos (Mastersoft.ARTICULO + articulosnumerados) --------------
-    -- TODO: Stock=0 es temporal. Reemplazar por el resultado real de
-    --       calcularStock/calcularStockNumerado (procedimientos existentes
-    --       en Mastersoft) cuando se implemente esa parte.
     -- TODO: costo=0 es temporal. Origen real aún no identificado en Mastersoft.
     INSERT INTO dbo.producto (
         Articulo, Descripcion, VentaNeto, PorcIla, PorcCarne, Unidad,
@@ -62,7 +95,7 @@ BEGIN TRY
         a.PorcIla,
         a.PorcCarne,
         a.Unidad,
-        0 AS Stock,                                                   -- TODO: calcularStock/calcularStockNumerado
+        ISNULL(sp.delta, 0) + ISNULL(sd.delta, 0) AS Stock,
         a.CodigoIla,
         CONVERT(date, SYSUTCDATETIME()),
         CASE WHEN an.Articulo IS NOT NULL THEN 1 ELSE 0 END AS numbered,
@@ -72,7 +105,11 @@ BEGIN TRY
                                                                         -- (PrecioLista2 no va aquí: se completa más abajo desde Mastersoft.PRECIOS)
     FROM Mastersoft.dbo.ARTICULO a
     LEFT JOIN Mastersoft.dbo.articulosnumerados an
-        ON an.Articulo = a.Articulo COLLATE Modern_Spanish_CI_AS;
+        ON an.Articulo = a.Articulo COLLATE Modern_Spanish_CI_AS
+    LEFT JOIN stock_partes sp
+        ON sp.articulo = a.Articulo COLLATE Modern_Spanish_CI_AS
+    LEFT JOIN stock_documentos sd
+        ON sd.articulo = a.Articulo COLLATE Modern_Spanish_CI_AS;
 
     -- ---- Precio secundario (rol 'S'), solo si Mastersoft.ListaPrecioActiva
     --      ya tiene una lista secundaria activa configurada -----------------
@@ -84,6 +121,36 @@ BEGIN TRY
     INNER JOIN Mastersoft.dbo.ListaPrecioActiva la
         ON la.CodigoLista COLLATE Modern_Spanish_CI_AS = pr.CodigoLista COLLATE Modern_Spanish_CI_AS
        AND la.Rol = 'S';
+
+    -- ---- Numerados (Mastersoft.numerados) -----------------------------------
+    -- Mapeo confirmado por el usuario el 2026-08-09: .articulo (varchar) es el
+    -- que calza con producto.Articulo (igual que usa articulosnumerados más
+    -- arriba); .narticulo es otro código interno de Mastersoft, no se usa acá.
+    -- Mastersoft.numerados no trae 'estado', queda en el default 'D' del
+    -- esquema (dbo.numerados.estado). Debe ejecutarse después de Productos
+    -- por la FK numerados.articulo -> producto.Articulo. Se descartan filas
+    -- con articulo vacío y filas "basura" cuyo articulo no calza con ningún
+    -- producto real (confirmado con el usuario: 18 filas en la data de
+    -- referencia, códigos como '.', '|', '.21', '10' — no son artículos).
+    INSERT INTO dbo.numerados (articulo, numero, peso)
+    SELECT n.articulo, n.numero, n.peso
+    FROM Mastersoft.dbo.numerados n
+    INNER JOIN dbo.producto p
+        ON p.Articulo = n.articulo COLLATE Modern_Spanish_CI_AS
+    WHERE LTRIM(RTRIM(n.articulo)) <> '';
+
+    -- ---- Piezas por producto (cuenta de dbo.numerados por artículo) --------
+    -- Confirmado por el usuario el 2026-08-09: la columna a llenar es
+    -- producto.pieces (no stockVentas ni piezasVentas, esas quedan en su
+    -- default 0). Debe ejecutarse después del INSERT de numerados de arriba.
+    UPDATE p
+       SET p.pieces = pp.piezas
+    FROM dbo.producto p
+    INNER JOIN (
+        SELECT articulo, COUNT(*) AS piezas
+        FROM dbo.numerados
+        GROUP BY articulo
+    ) pp ON pp.articulo = p.Articulo COLLATE Modern_Spanish_CI_AS;
 
     -- ---- Clientes (Mastersoft.msoclientes) ----------------------------------
     -- Nombres de columna verificados contra Mastersoft.dbo.msoclientes real:

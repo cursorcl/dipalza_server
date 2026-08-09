@@ -99,7 +99,15 @@ EXEC sp_add_jobserver
      @server_name = N'(LOCAL)';
 GO
 
--- JOB 4: Listas activas ventas -> Mastersoft (cada 10 segundos, corre en Mastersoft)
+-- JOB 4: Listas activas ventas -> Mastersoft (cada 30 segundos, corre en Mastersoft)
+-- Antes cada 10 segundos. La causa real de las fallas intermitentes NO era
+-- el intervalo (confirmado: invocado manualmente vía sp_start_job, fuera
+-- del scheduler, fallaba igual) sino que [Mastersoft] había quedado con
+-- AUTO_CLOSE=ON (heredado del backup de origen, típicamente SQL Server
+-- Express, donde AUTO_CLOSE=ON es el default de fábrica) — ver la nota de
+-- prerrequisitos en 00_crear_base_datos.sql. Con AUTO_CLOSE desactivado el
+-- job corre limpio incluso cada 10s; se deja en 30s como margen adicional
+-- por decisión del usuario, no porque sea necesario para la falla.
 -- Se crea deshabilitado: habilitar recién después de que
 -- 07_poblado_inicial_ventas.sql termine con éxito, vía 08_habilitar_jobs.sql.
 EXEC sp_add_job
@@ -115,13 +123,13 @@ EXEC sp_add_jobstep
      @on_success_action = 1,
      @on_fail_action = 2;
 EXEC sp_add_schedule
-     @schedule_name = N'SCH_ListaActiva_10Seg',
+     @schedule_name = N'SCH_ListaActiva_30Seg',
      @freq_type = 4, @freq_interval = 1,
-     @freq_subday_type = 2, @freq_subday_interval = 10,
+     @freq_subday_type = 2, @freq_subday_interval = 30,
      @active_start_time = 0;
 EXEC sp_attach_schedule
      @job_name = N'Dipalza - Procesar ListaPrecioActivaQueue',
-     @schedule_name = N'SCH_ListaActiva_10Seg';
+     @schedule_name = N'SCH_ListaActiva_30Seg';
 EXEC sp_add_jobserver
      @job_name = N'Dipalza - Procesar ListaPrecioActivaQueue',
      @server_name = N'(LOCAL)';
