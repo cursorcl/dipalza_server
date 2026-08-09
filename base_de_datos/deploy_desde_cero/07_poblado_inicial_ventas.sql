@@ -152,6 +152,25 @@ BEGIN TRY
         GROUP BY articulo
     ) pp ON pp.articulo = p.Articulo COLLATE Modern_Spanish_CI_AS;
 
+    -- ---- Stock de productos numerados (sobrescribe el Stock por movimientos) -
+    -- Confirmado por el usuario el 2026-08-09, comparando contra
+    -- Mastersoft.dbo.calcularStockNumerado (SUM(peso)/COUNT(peso) FROM
+    -- NUMERADOS WHERE articulo=@id): para productos numerados (numbered=1)
+    -- el Stock real —siempre en Kg— es lo que queda en NUMERADOS, no la
+    -- fórmula de movimientos usada arriba para el resto de los productos
+    -- (verificado: para estos artículos ambos valores difieren en órdenes
+    -- de magnitud, no es una variación menor). Debe ejecutarse después del
+    -- INSERT de numerados.
+    UPDATE p
+       SET p.Stock = ISNULL(nn.peso_numerados, 0)
+    FROM dbo.producto p
+    INNER JOIN (
+        SELECT articulo, SUM(peso) AS peso_numerados
+        FROM dbo.numerados
+        GROUP BY articulo
+    ) nn ON nn.articulo = p.Articulo COLLATE Modern_Spanish_CI_AS
+    WHERE p.numbered = 1;
+
     -- ---- Clientes (Mastersoft.msoclientes) ----------------------------------
     -- Nombres de columna verificados contra Mastersoft.dbo.msoclientes real:
     -- Ruta y Vendedor (no codigo_ruta/codigo_vendedor); el resto coincide 1:1.
