@@ -99,7 +99,13 @@ EXEC sp_add_jobserver
      @server_name = N'(LOCAL)';
 GO
 
--- JOB 4: Listas activas ventas -> Mastersoft (cada 10 segundos, corre en Mastersoft)
+-- JOB 4: Listas activas ventas -> Mastersoft (cada 1 minuto, corre en Mastersoft)
+-- Antes cada 10 segundos: en SQL Server 2022 ese intervalo tan agresivo
+-- hace que el Agent rechace la ejecución casi siempre ("no steps ran"),
+-- sin que el procedimiento llegue a correr — no reproducible en SQL Server
+-- 2019 (producción). Confirmado el 2026-08-09 contra una instancia 2022
+-- de prueba; ver docs/superpowers/specs para el detalle. Se sube a 1
+-- minuto, igual que SCH_MasterData_1Min.
 -- Se crea deshabilitado: habilitar recién después de que
 -- 07_poblado_inicial_ventas.sql termine con éxito, vía 08_habilitar_jobs.sql.
 EXEC sp_add_job
@@ -115,13 +121,13 @@ EXEC sp_add_jobstep
      @on_success_action = 1,
      @on_fail_action = 2;
 EXEC sp_add_schedule
-     @schedule_name = N'SCH_ListaActiva_10Seg',
+     @schedule_name = N'SCH_ListaActiva_1Min',
      @freq_type = 4, @freq_interval = 1,
-     @freq_subday_type = 2, @freq_subday_interval = 10,
+     @freq_subday_type = 4, @freq_subday_interval = 1,
      @active_start_time = 0;
 EXEC sp_attach_schedule
      @job_name = N'Dipalza - Procesar ListaPrecioActivaQueue',
-     @schedule_name = N'SCH_ListaActiva_10Seg';
+     @schedule_name = N'SCH_ListaActiva_1Min';
 EXEC sp_add_jobserver
      @job_name = N'Dipalza - Procesar ListaPrecioActivaQueue',
      @server_name = N'(LOCAL)';
