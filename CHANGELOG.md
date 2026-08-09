@@ -1,3 +1,10 @@
+## [1.10.3](https://github.com/cursorcl/dipalza_server/compare/v1.10.2...v1.10.3) (2026-08-09)
+
+
+### Bug Fixes
+
+* usa índice único filtrado para app_user.email (permite múltiples NULL) ([#40](https://github.com/cursorcl/dipalza_server/issues/40)) ([c5442c2](https://github.com/cursorcl/dipalza_server/commit/c5442c2287853a0b4fb03e85bf93ea3667eb2bf0))
+
 ## [1.10.2](https://github.com/cursorcl/dipalza_server/compare/v1.10.1...v1.10.2) (2026-08-09)
 
 
