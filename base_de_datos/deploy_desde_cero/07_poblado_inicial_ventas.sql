@@ -44,6 +44,14 @@ BEGIN TRY
     FROM Mastersoft.dbo.msosttablas
     WHERE tabla = '004';
 
+    -- ---- Configuración (copia exacta de lo que hay hoy en [ventas] de
+    --      producción, confirmado por el usuario el 2026-08-09; no existe
+    --      fuente equivalente en Mastersoft, son parámetros propios de la
+    --      app). Si estos valores cambian en producción, actualizar aquí. --
+    INSERT INTO dbo.configuracion (propiedad, valor, tipo, descripcion) VALUES
+        ('FACTURA_ELECTRONICA', 'true', 'BOOLEAN', 'Se usa o no factura electrónica'),
+        ('NUMERO_LINEAS_FACTURA', '25', 'INTEGER', 'Número de líneas en una factura');
+
     -- ---- Productos (Mastersoft.ARTICULO + articulosnumerados) --------------
     -- TODO: Stock=0 es temporal. Reemplazar por el resultado real de
     --       calcularStock/calcularStockNumerado (procedimientos existentes
@@ -84,6 +92,23 @@ BEGIN TRY
     INNER JOIN Mastersoft.dbo.ListaPrecioActiva la
         ON la.CodigoLista COLLATE Modern_Spanish_CI_AS = pr.CodigoLista COLLATE Modern_Spanish_CI_AS
        AND la.Rol = 'S';
+
+    -- ---- Numerados (Mastersoft.numerados) -----------------------------------
+    -- Mapeo confirmado por el usuario el 2026-08-09: .articulo (varchar) es el
+    -- que calza con producto.Articulo (igual que usa articulosnumerados más
+    -- arriba); .narticulo es otro código interno de Mastersoft, no se usa acá.
+    -- Mastersoft.numerados no trae 'estado', queda en el default 'D' del
+    -- esquema (dbo.numerados.estado). Debe ejecutarse después de Productos
+    -- por la FK numerados.articulo -> producto.Articulo. Se descartan filas
+    -- con articulo vacío y filas "basura" cuyo articulo no calza con ningún
+    -- producto real (confirmado con el usuario: 18 filas en la data de
+    -- referencia, códigos como '.', '|', '.21', '10' — no son artículos).
+    INSERT INTO dbo.numerados (articulo, numero, peso)
+    SELECT n.articulo, n.numero, n.peso
+    FROM Mastersoft.dbo.numerados n
+    INNER JOIN dbo.producto p
+        ON p.Articulo = n.articulo COLLATE Modern_Spanish_CI_AS
+    WHERE LTRIM(RTRIM(n.articulo)) <> '';
 
     -- ---- Clientes (Mastersoft.msoclientes) ----------------------------------
     -- Nombres de columna verificados contra Mastersoft.dbo.msoclientes real:
