@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/cursorcl/dipalza_server/compare/v1.10.1...v1.10.2) (2026-08-09)
+
+
+### Bug Fixes
+
+* usa NUMERADOS para el Stock inicial de productos numerados ([#39](https://github.com/cursorcl/dipalza_server/issues/39)) ([62d60bc](https://github.com/cursorcl/dipalza_server/commit/62d60bc0bab042c6cce09f518e6a0dfaa4431999))
+
 ## [1.10.1](https://github.com/cursorcl/dipalza_server/compare/v1.10.0...v1.10.1) (2026-08-09)
 
 
