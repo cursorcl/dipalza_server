@@ -60,6 +60,19 @@ CREATE DATABASE ventas
     COLLATE Modern_Spanish_CI_AS;
 GO
 
+/* ---- AUTO_CLOSE de Mastersoft --------------------------------------------
+   Si [Mastersoft] se restauró desde un .bak de una instancia SQL Server
+   Express, hereda AUTO_CLOSE=ON (default de fábrica de Express). Con eso
+   activado, el job "Dipalza - Procesar ListaPrecioActivaQueue" (corre en
+   [Mastersoft], ver 05_jobs_msdb.sql) falla intermitentemente con "The
+   last step to run was step 0 (no steps ran)" — confirmado el 2026-08-09,
+   incluso invocando el job manualmente vía sp_start_job; desaparece por
+   completo al desactivar AUTO_CLOSE. No es un problema del intervalo del
+   schedule ni del procedimiento en sí. Se desactiva acá, antes de crear
+   ningún job (05). ------------------------------------------------------- */
+ALTER DATABASE Mastersoft SET AUTO_CLOSE OFF;
+GO
+
 /* ---- Login dedicado de la app (en vez de sa) --------------------------
    Reemplaza CAMBIAR_ESTA_CLAVE por una clave real antes de ejecutar, y
    configura esa misma clave como DB_PASSWORD / FACTURACION_DB_PASSWORD
