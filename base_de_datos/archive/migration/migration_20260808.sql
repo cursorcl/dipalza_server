@@ -11,13 +11,24 @@
 -- Ver AuthController (endpoints /auth/forgot-password, /auth/reset-password)
 -- y el nuevo UsuarioController (PUT /api/usuario/cambiar-clave).
 
+SET QUOTED_IDENTIFIER ON;
+GO
+
 BEGIN TRAN;
 
 ALTER TABLE dbo.app_user
     ADD email varchar(255) COLLATE Modern_Spanish_CI_AS NULL;
+GO
 
-ALTER TABLE dbo.app_user
-    ADD CONSTRAINT UQ_app_user_email UNIQUE (email);
+-- Indice unico FILTRADO (no constraint UNIQUE simple): SQL Server trata
+-- NULL como valor unico en un UNIQUE constraint/indice normal, y todos
+-- los usuarios existentes quedan con email=NULL hasta que se les cargue
+-- uno -- un UNIQUE(email) sin filtro falla de inmediato con "duplicate
+-- key (NULL)" apenas hay mas de un usuario. WHERE email IS NOT NULL
+-- excluye los NULL de la verificacion de unicidad.
+CREATE UNIQUE NONCLUSTERED INDEX UQ_app_user_email
+    ON dbo.app_user(email)
+    WHERE email IS NOT NULL;
 
 CREATE TABLE dbo.app_password_reset_token (
     id         bigint IDENTITY(1,1) NOT NULL,
