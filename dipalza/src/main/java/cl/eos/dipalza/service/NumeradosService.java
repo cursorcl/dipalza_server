@@ -11,6 +11,7 @@ import cl.eos.dipalza.utils.Constants;
 import org.springframework.data.repository.query.Param;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -73,6 +74,7 @@ public class NumeradosService {
         return numerados.stream().map(numeradoMapper::toDTO).collect(Collectors.toList());
     }
 
+    @Transactional
     public NumeradoDTO save(NumeradoDTO n) {
         Producto producto = productoRepository.findByArticulo(n.getCodigoProducto());
         if(producto == null) {
@@ -100,6 +102,7 @@ public class NumeradosService {
         return numeradoMapper.toDTO(numerado);
     }
 
+    @Transactional
     public void deleteById(Long id) {
         Numerado numerado = numeradoRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Numerado no encontrado"));
