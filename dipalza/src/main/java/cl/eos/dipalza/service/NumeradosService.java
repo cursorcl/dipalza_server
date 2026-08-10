@@ -7,8 +7,11 @@ import cl.eos.dipalza.model.NumeradoDTO;
 import cl.eos.dipalza.model.NumeradoResumenDTO;
 import cl.eos.dipalza.repository.NumeradoRepository;
 import cl.eos.dipalza.repository.ProductoRepository;
+import cl.eos.dipalza.utils.Constants;
 import org.springframework.data.repository.query.Param;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -75,24 +78,51 @@ public class NumeradosService {
         if(producto == null) {
             return null;
         }
-        Numerado numerado = numeradoRepository.findById(n.getId()).orElse(null);
-        if(numerado == null) {
-            numerado = new Numerado();
+        if(!Boolean.TRUE.equals(producto.getNumbered())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El producto no está marcado como numerado");
         }
+        if(numeradoRepository.existsNumeroActivoParaProducto(producto.getArticulo(), n.getNumero(), n.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ya existe un numerado activo con ese número para este producto");
+        }
+
+        Numerado numerado = (n.getId() != null)
+                ? numeradoRepository.findById(n.getId()).orElse(new Numerado())
+                : new Numerado();
+
         numerado.setProducto(producto);
         numerado.setNumero(n.getNumero());
         numerado.setEstado(n.getEstado());
         numerado.setPeso(n.getPeso());
         numeradoRepository.save(numerado);
+
+        actualizarPiezasDisponibles(producto);
+
         return numeradoMapper.toDTO(numerado);
     }
 
     public void deleteById(Long id) {
+        Numerado numerado = numeradoRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Numerado no encontrado"));
+        Producto producto = numerado.getProducto();
+
         numeradoRepository.deleteById(id);
+
+        actualizarPiezasDisponibles(producto);
     }
 
-
-
+    /**
+     * Recalcula producto.pieces como el conteo de numerados en estado
+     * Disponible para ese producto. Se recalcula por conteo (no delta) para
+     * que nunca pueda desincronizarse: usa el mismo criterio que ya expone
+     * GET /api/numerados/resumen.
+     */
+    private void actualizarPiezasDisponibles(Producto producto) {
+        int piezas = numeradoRepository
+                .findByProductoIdAndEstadoOrderById(producto.getArticulo(), Constants.ESTADO_NUMERADO_DISPONIBLE)
+                .size();
+        producto.setPieces(BigDecimal.valueOf(piezas));
+        productoRepository.save(producto);
+    }
 
     public Float findPrecioPromedioArticulo(String articulo) {
         List<Numerado> lista = numeradoRepository.findByProductoId(articulo);
