@@ -71,7 +71,10 @@ public class NumeradosService {
         if(numerados.isEmpty()) {
             return List.of();
         }
-        return numerados.stream().map(numeradoMapper::toDTO).collect(Collectors.toList());
+        return numerados.stream()
+                .filter(n -> !Constants.ESTADO_NUMERADO_VENDIDO.equals(n.getEstado()))
+                .map(numeradoMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -106,6 +109,9 @@ public class NumeradosService {
     public void deleteById(Long id) {
         Numerado numerado = numeradoRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Numerado no encontrado"));
+        if(!Constants.ESTADO_NUMERADO_DISPONIBLE.equals(numerado.getEstado())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Solo se pueden eliminar numerados en estado Disponible");
+        }
         Producto producto = numerado.getProducto();
 
         numeradoRepository.deleteById(id);

@@ -85,6 +85,21 @@ class NumeradosServiceTest {
     }
 
     @Test
+    void findByProducto_excluyeVendidos_retornaSoloDisponibles() {
+        Numerado disponible = numerado(1L, "ART001", BigDecimal.TEN);
+        disponible.setEstado("D");
+        Numerado vendido = numerado(2L, "ART001", BigDecimal.ONE);
+        vendido.setEstado("V");
+        when(numeradoRepo.findByProductoId("ART001")).thenReturn(List.of(disponible, vendido));
+        when(mapper.toDTO(disponible)).thenReturn(dto(1L));
+
+        List<NumeradoDTO> result = service.findByProducto("ART001");
+
+        assertThat(result).hasSize(1).extracting(NumeradoDTO::getId).containsExactly(1L);
+        verify(mapper, never()).toDTO(vendido);
+    }
+
+    @Test
     void findById_existente_retornaDTO() {
         when(numeradoRepo.findById(1L)).thenReturn(Optional.of(numerado(1L, "ART001", BigDecimal.TEN)));
         when(mapper.toDTO(any())).thenReturn(dto(1L));
@@ -184,6 +199,19 @@ class NumeradosServiceTest {
 
         assertThatThrownBy(() -> service.deleteById(99L))
                 .isInstanceOf(ResponseStatusException.class);
+
+        verify(numeradoRepo, never()).deleteById(any());
+    }
+
+    @Test
+    void deleteById_estadoNoDisponible_lanza400YNoElimina() {
+        Numerado vendido = numerado(5L, "ART001", BigDecimal.TEN);
+        vendido.setEstado("V");
+        when(numeradoRepo.findById(5L)).thenReturn(Optional.of(vendido));
+
+        assertThatThrownBy(() -> service.deleteById(5L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Solo se pueden eliminar numerados en estado Disponible");
 
         verify(numeradoRepo, never()).deleteById(any());
     }
