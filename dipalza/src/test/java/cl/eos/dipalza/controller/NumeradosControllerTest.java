@@ -9,8 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -88,5 +90,29 @@ class NumeradosControllerTest {
         mockMvc.perform(get("/api/numerados/pesopromedio/ART001"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", is(15.5)));
+    }
+
+    @Test
+    void createNumerado_productoNoNumerado_retorna400() throws Exception {
+        NumeradoDTO d = dto(null);
+        when(service.save(any())).thenThrow(
+                new ResponseStatusException(HttpStatus.BAD_REQUEST, "El producto no está marcado como numerado"));
+
+        mockMvc.perform(post("/api/numerados")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(d)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createNumerado_numeroDuplicado_retorna400() throws Exception {
+        NumeradoDTO d = dto(null);
+        when(service.save(any())).thenThrow(
+                new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ya existe un numerado activo con ese número para este producto"));
+
+        mockMvc.perform(post("/api/numerados")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(d)))
+                .andExpect(status().isBadRequest());
     }
 }

@@ -32,4 +32,15 @@ public interface NumeradoRepository extends JpaRepository<Numerado, Long> {
     GROUP BY n.producto.articulo, n.producto.descripcion
 """)
     List<NumeradoResumenDTO> findGroupedByEstado(@Param("estado") String estado);
+
+    @Query("""
+    SELECT COUNT(n) > 0 FROM Numerado n
+    WHERE n.producto.articulo = :articulo
+      AND n.numero = :numero
+      AND n.estado IN ('D','R')
+      AND (:id IS NULL OR n.id <> :id)
+""")
+    boolean existsNumeroActivoParaProducto(@Param("articulo") String articulo,
+                                            @Param("numero") Integer numero,
+                                            @Param("id") Long id);
 }
