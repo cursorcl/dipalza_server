@@ -12,7 +12,9 @@ import java.util.List;
 public interface ProductoRepository extends JpaRepository<Producto, String> {
 
 	List<Producto> getProductosByDescripcion(String descripcion);
-	
+
 	@Query("SELECT p FROM Producto p WHERE p.articulo = :articulo")
 	Producto findByArticulo(@Param("articulo") String articulo);
+
+	List<Producto> findByNumberedTrue();
 }

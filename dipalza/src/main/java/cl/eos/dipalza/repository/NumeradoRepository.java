@@ -43,4 +43,6 @@ public interface NumeradoRepository extends JpaRepository<Numerado, Long> {
     boolean existsNumeroActivoParaProducto(@Param("articulo") String articulo,
                                             @Param("numero") Integer numero,
                                             @Param("id") Long id);
+
+    boolean existsByProducto_Articulo(String articulo);
 }

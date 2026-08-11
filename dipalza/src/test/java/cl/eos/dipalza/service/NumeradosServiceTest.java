@@ -4,6 +4,7 @@ import cl.eos.dipalza.entity.Numerado;
 import cl.eos.dipalza.entity.Producto;
 import cl.eos.dipalza.mapper.NumeradoMapper;
 import cl.eos.dipalza.model.NumeradoDTO;
+import cl.eos.dipalza.model.ProductoElegibleNumeradoDTO;
 import cl.eos.dipalza.repository.NumeradoRepository;
 import cl.eos.dipalza.repository.ProductoRepository;
 import org.junit.jupiter.api.Test;
@@ -230,5 +231,104 @@ class NumeradosServiceTest {
         );
         when(numeradoRepo.findByProductoId("ART001")).thenReturn(lista);
         assertThat(service.findPrecioPromedioArticulo("ART001")).isEqualTo(15f);
+    }
+
+    @Test
+    void findProductosElegibles_retornaSoloNumberedTrueConDatosDelProducto() {
+        Producto p = productoNumerado("ART001");
+        p.setDescripcion("Queso");
+        p.setStock(BigDecimal.valueOf(50));
+        p.setPieces(BigDecimal.valueOf(3));
+        when(productoRepo.findByNumberedTrue()).thenReturn(List.of(p));
+        when(numeradoRepo.existsByProducto_Articulo("ART001")).thenReturn(false);
+
+        List<ProductoElegibleNumeradoDTO> result = service.findProductosElegibles();
+
+        assertThat(result).hasSize(1);
+        ProductoElegibleNumeradoDTO dto = result.get(0);
+        assertThat(dto.codigoProducto()).isEqualTo("ART001");
+        assertThat(dto.nombreProducto()).isEqualTo("Queso");
+        assertThat(dto.stock()).isEqualByComparingTo(BigDecimal.valueOf(50));
+        assertThat(dto.piezas()).isEqualByComparingTo(BigDecimal.valueOf(3));
+        assertThat(dto.tieneRegistrosAsociados()).isFalse();
+    }
+
+    @Test
+    void findProductosElegibles_marcaTieneRegistrosAsociadosSiExisteAlgunNumerado() {
+        Producto p = productoNumerado("ART002");
+        when(productoRepo.findByNumberedTrue()).thenReturn(List.of(p));
+        when(numeradoRepo.existsByProducto_Articulo("ART002")).thenReturn(true);
+
+        List<ProductoElegibleNumeradoDTO> result = service.findProductosElegibles();
+
+        assertThat(result.get(0).tieneRegistrosAsociados()).isTrue();
+    }
+
+    @Test
+    void marcarProductoComoNumerado_productoNoExiste_lanza404() {
+        when(productoRepo.findByArticulo("NOEXISTE")).thenReturn(null);
+
+        assertThatThrownBy(() -> service.marcarProductoComoNumerado("NOEXISTE"))
+                .isInstanceOf(ResponseStatusException.class);
+
+        verify(productoRepo, never()).save(any());
+    }
+
+    @Test
+    void marcarProductoComoNumerado_yaMarcado_esNoOp() {
+        Producto p = productoNumerado("ART001");
+        when(productoRepo.findByArticulo("ART001")).thenReturn(p);
+
+        service.marcarProductoComoNumerado("ART001");
+
+        verify(productoRepo, never()).save(any());
+    }
+
+    @Test
+    void marcarProductoComoNumerado_noMarcado_loMarcaYGuarda() {
+        Producto p = new Producto();
+        p.setArticulo("ART001");
+        p.setNumbered(false);
+        when(productoRepo.findByArticulo("ART001")).thenReturn(p);
+
+        service.marcarProductoComoNumerado("ART001");
+
+        ArgumentCaptor<Producto> captor = ArgumentCaptor.forClass(Producto.class);
+        verify(productoRepo).save(captor.capture());
+        assertThat(captor.getValue().getNumbered()).isTrue();
+    }
+
+    @Test
+    void desmarcarProductoComoNumerado_productoNoExiste_lanza404() {
+        when(productoRepo.findByArticulo("NOEXISTE")).thenReturn(null);
+
+        assertThatThrownBy(() -> service.desmarcarProductoComoNumerado("NOEXISTE"))
+                .isInstanceOf(ResponseStatusException.class);
+    }
+
+    @Test
+    void desmarcarProductoComoNumerado_conRegistrosAsociados_lanza400YNoGuarda() {
+        Producto p = productoNumerado("ART001");
+        when(productoRepo.findByArticulo("ART001")).thenReturn(p);
+        when(numeradoRepo.existsByProducto_Articulo("ART001")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.desmarcarProductoComoNumerado("ART001"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("numerados asociados");
+
+        verify(productoRepo, never()).save(any());
+    }
+
+    @Test
+    void desmarcarProductoComoNumerado_sinRegistrosAsociados_loDesmarcaYGuarda() {
+        Producto p = productoNumerado("ART001");
+        when(productoRepo.findByArticulo("ART001")).thenReturn(p);
+        when(numeradoRepo.existsByProducto_Articulo("ART001")).thenReturn(false);
+
+        service.desmarcarProductoComoNumerado("ART001");
+
+        ArgumentCaptor<Producto> captor = ArgumentCaptor.forClass(Producto.class);
+        verify(productoRepo).save(captor.capture());
+        assertThat(captor.getValue().getNumbered()).isFalse();
     }
 }
