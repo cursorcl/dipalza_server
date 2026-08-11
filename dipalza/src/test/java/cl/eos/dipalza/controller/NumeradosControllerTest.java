@@ -2,6 +2,7 @@ package cl.eos.dipalza.controller;
 
 import cl.eos.dipalza.model.NumeradoDTO;
 import cl.eos.dipalza.model.NumeradoResumenDTO;
+import cl.eos.dipalza.model.ProductoElegibleNumeradoDTO;
 import cl.eos.dipalza.service.NumeradosService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -113,6 +114,54 @@ class NumeradosControllerTest {
         mockMvc.perform(post("/api/numerados")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(d)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getProductosElegibles_retornaLista() throws Exception {
+        ProductoElegibleNumeradoDTO dto = new ProductoElegibleNumeradoDTO(
+                "ART001", "Queso", BigDecimal.valueOf(50), BigDecimal.valueOf(3), false);
+        when(service.findProductosElegibles()).thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/numerados/productos-elegibles"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].codigoProducto", is("ART001")))
+                .andExpect(jsonPath("$[0].tieneRegistrosAsociados", is(false)));
+    }
+
+    @Test
+    void marcarProductoElegible_ok_retorna200() throws Exception {
+        mockMvc.perform(put("/api/numerados/productos-elegibles/ART001"))
+                .andExpect(status().isOk());
+
+        verify(service).marcarProductoComoNumerado("ART001");
+    }
+
+    @Test
+    void marcarProductoElegible_productoNoExiste_retorna404() throws Exception {
+        doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"))
+                .when(service).marcarProductoComoNumerado("NOEXISTE");
+
+        mockMvc.perform(put("/api/numerados/productos-elegibles/NOEXISTE"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void desmarcarProductoElegible_ok_retorna200() throws Exception {
+        mockMvc.perform(delete("/api/numerados/productos-elegibles/ART001"))
+                .andExpect(status().isOk());
+
+        verify(service).desmarcarProductoComoNumerado("ART001");
+    }
+
+    @Test
+    void desmarcarProductoElegible_conRegistrosAsociados_retorna400() throws Exception {
+        doThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "No se puede quitar: el producto tiene numerados asociados"))
+                .when(service).desmarcarProductoComoNumerado("ART001");
+
+        mockMvc.perform(delete("/api/numerados/productos-elegibles/ART001"))
                 .andExpect(status().isBadRequest());
     }
 }
