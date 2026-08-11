@@ -57,6 +57,7 @@ public class NumeradosService {
      * cualquier estado (Disponible, Reservado o Vendido) — ese último dato
      * determina si se pueden desmarcar sin romper historial.
      */
+    @Transactional(readOnly = true)
     public List<ProductoElegibleNumeradoDTO> findProductosElegibles() {
         return productoRepository.findByNumberedTrue().stream()
                 .map(p -> new ProductoElegibleNumeradoDTO(
