@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/cursorcl/dipalza_server/compare/v1.10.3...v1.11.0) (2026-08-11)
+
+
+### Features
+
+* completa validaciones y sincronización de piezas en el formulario de numerados ([#41](https://github.com/cursorcl/dipalza_server/issues/41)) ([d0a19c8](https://github.com/cursorcl/dipalza_server/commit/d0a19c892db74f8272fa2f5aa96f69647991e3a5))
+
 ## [1.10.3](https://github.com/cursorcl/dipalza_server/compare/v1.10.2...v1.10.3) (2026-08-09)
 
 
