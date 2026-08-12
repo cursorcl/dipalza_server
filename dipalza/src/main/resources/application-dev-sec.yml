@@ -47,6 +47,7 @@ logging:
 app:
   cors:
     allowed-origins: "http://localhost:4200"
+  frontend-base-url: "http://localhost:4200"
 
 security:
   jwt:
