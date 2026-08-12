@@ -2,6 +2,7 @@ package cl.eos.dipalza.entity;
 
 import jakarta.persistence.*;
 
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -20,6 +21,8 @@ public class AppUser {
 	private String email;
 	private boolean enabled = true;
 	private boolean locked = false;
+	@Column(name = "created_at", insertable = false, updatable = false)
+	private LocalDate createdAt;
 
 	@ManyToMany(fetch = FetchType.EAGER)
 	@JoinTable(name = "app_user_roles", joinColumns = @JoinColumn(name = "user_id"), inverseJoinColumns = @JoinColumn(name = "role_id"))
@@ -79,6 +82,10 @@ public class AppUser {
 
 	public void setLocked(boolean locked) {
 		this.locked = locked;
+	}
+
+	public LocalDate getCreatedAt() {
+		return createdAt;
 	}
 
 	public Set<AppRole> getRoles() {

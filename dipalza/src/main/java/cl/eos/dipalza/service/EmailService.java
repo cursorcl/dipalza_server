@@ -29,4 +29,19 @@ public class EmailService {
 				""".formatted(codigo));
 		mailSender.send(mensaje);
 	}
+
+	public void enviarCredencialesIniciales(String destinatario, String username, String claveInicial) {
+		var mensaje = new SimpleMailMessage();
+		mensaje.setTo(destinatario);
+		mensaje.setSubject("Dipalza - Tu cuenta fue creada");
+		mensaje.setText("""
+				Se creó una cuenta de Dipalza para ti.
+
+				Usuario: %s
+				Clave inicial: %s
+
+				Te recomendamos cambiar esta clave la primera vez que inicies sesión.
+				""".formatted(username, claveInicial));
+		mailSender.send(mensaje);
+	}
 }
