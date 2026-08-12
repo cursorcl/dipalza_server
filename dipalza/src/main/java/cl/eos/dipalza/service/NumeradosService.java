@@ -5,6 +5,7 @@ import cl.eos.dipalza.entity.Producto;
 import cl.eos.dipalza.mapper.NumeradoMapper;
 import cl.eos.dipalza.model.NumeradoDTO;
 import cl.eos.dipalza.model.NumeradoResumenDTO;
+import cl.eos.dipalza.model.ProductoElegibleNumeradoDTO;
 import cl.eos.dipalza.repository.NumeradoRepository;
 import cl.eos.dipalza.repository.ProductoRepository;
 import cl.eos.dipalza.utils.Constants;
@@ -49,6 +50,53 @@ public class NumeradosService {
         List<NumeradoResumenDTO> numerados = numeradoRepository.findGroupedByEstado("D");
         return numerados;
     }
+
+    /**
+     * Lista los productos marcados como numerado (numbered=true), con su
+     * stock/piezas actuales y si tienen algún Numerado asociado en
+     * cualquier estado (Disponible, Reservado o Vendido) — ese último dato
+     * determina si se pueden desmarcar sin romper historial.
+     */
+    @Transactional(readOnly = true)
+    public List<ProductoElegibleNumeradoDTO> findProductosElegibles() {
+        return productoRepository.findByNumberedTrue().stream()
+                .map(p -> new ProductoElegibleNumeradoDTO(
+                        p.getArticulo(),
+                        p.getDescripcion(),
+                        p.getStock(),
+                        p.getPieces(),
+                        numeradoRepository.existsByProducto_Articulo(p.getArticulo())
+                ))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void marcarProductoComoNumerado(String articulo) {
+        Producto producto = productoRepository.findByArticulo(articulo);
+        if (producto == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado");
+        }
+        if (Boolean.TRUE.equals(producto.getNumbered())) {
+            return;
+        }
+        producto.setNumbered(true);
+        productoRepository.save(producto);
+    }
+
+    @Transactional
+    public void desmarcarProductoComoNumerado(String articulo) {
+        Producto producto = productoRepository.findByArticulo(articulo);
+        if (producto == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado");
+        }
+        if (numeradoRepository.existsByProducto_Articulo(articulo)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No se puede quitar: el producto tiene numerados asociados");
+        }
+        producto.setNumbered(false);
+        productoRepository.save(producto);
+    }
+
     public List<NumeradoDTO> findAllByEstado(@Param("estado") String estado) {
         List<Numerado> numerados = numeradoRepository.findByEstado(estado);
         if(numerados.isEmpty()) {

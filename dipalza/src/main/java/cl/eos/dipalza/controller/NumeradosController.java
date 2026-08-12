@@ -2,6 +2,7 @@ package cl.eos.dipalza.controller;
 
 import cl.eos.dipalza.model.NumeradoDTO;
 import cl.eos.dipalza.model.NumeradoResumenDTO;
+import cl.eos.dipalza.model.ProductoElegibleNumeradoDTO;
 import cl.eos.dipalza.service.NumeradosService;
 import org.springframework.data.repository.query.Param;
 import org.springframework.web.bind.annotation.*;
@@ -57,5 +58,20 @@ public class NumeradosController {
     @GetMapping("/pesopromedio/{articulo}")
     public Float findPesoPromedioArticulo(@PathVariable String articulo) {
         return numeradosService.findPrecioPromedioArticulo(articulo);
+    }
+
+    @GetMapping("/productos-elegibles")
+    public List<ProductoElegibleNumeradoDTO> getProductosElegibles() {
+        return this.numeradosService.findProductosElegibles();
+    }
+
+    @PutMapping("/productos-elegibles/{articulo}")
+    public void marcarProductoElegible(@PathVariable String articulo) {
+        this.numeradosService.marcarProductoComoNumerado(articulo);
+    }
+
+    @DeleteMapping("/productos-elegibles/{articulo}")
+    public void desmarcarProductoElegible(@PathVariable String articulo) {
+        this.numeradosService.desmarcarProductoComoNumerado(articulo);
     }
 }
