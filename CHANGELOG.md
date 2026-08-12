@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/cursorcl/dipalza_server/compare/v1.11.1...v1.12.0) (2026-08-12)
+
+
+### Features
+
+* gestión de productos elegibles para numerado ([#43](https://github.com/cursorcl/dipalza_server/issues/43)) ([eb53371](https://github.com/cursorcl/dipalza_server/commit/eb53371decdbb0f3787e939646de90ce84e8960b))
+
 ## [1.11.1](https://github.com/cursorcl/dipalza_server/compare/v1.11.0...v1.11.1) (2026-08-11)
 
 
