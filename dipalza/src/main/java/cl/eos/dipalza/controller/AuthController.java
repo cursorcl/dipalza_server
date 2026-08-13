@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -223,6 +224,13 @@ public class AuthController {
 	}
 	
 	
+	// Transaccional para que la rotación de clave, el flag de cambio obligatorio,
+	// la revocación de tokens y el envío del correo sean atómicos: si el SMTP
+	// falla, se revierte todo y el usuario conserva su clave (antes quedaba con
+	// una clave que nunca recibió y sin sesiones: lockout total). Además mantiene
+	// el AppUser attached durante todo el flujo, cerrando la ventana en que un
+	// save() de un entity detached podía revertir cambios hechos por un admin.
+	@Transactional
 	@PostMapping("/forgot-password")
 	public void forgotPassword(@RequestBody ForgotPasswordReq req) {
 		String clave = req.usernameOrEmail() == null ? "" : req.usernameOrEmail().trim();
