@@ -238,8 +238,12 @@ public class AuthController {
 		Optional<AppUser> userOpt = clave.contains("@") ? users.findByEmail(clave) : users.findByUsername(clave);
 
 		// Responde siempre igual, exista o no el usuario/correo, para no filtrar
-		// qué cuentas están registradas.
+		// qué cuentas están registradas. Las cuentas deshabilitadas o bloqueadas
+		// se tratan como inexistentes: no tiene sentido enviarles una clave
+		// temporal si igual no pueden iniciar sesión (login valida ambos flags).
 		if (userOpt.isEmpty() || userOpt.get().getEmail() == null)
+			return;
+		if (!userOpt.get().isEnabled() || userOpt.get().isLocked())
 			return;
 
 		AppUser u = userOpt.get();

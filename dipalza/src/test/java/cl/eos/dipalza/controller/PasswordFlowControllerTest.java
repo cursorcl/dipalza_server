@@ -180,6 +180,39 @@ class PasswordFlowControllerTest {
 	}
 
 	@Test
+	void forgotPassword_usuarioDeshabilitado_noEnviaCorreoNiRotaLaClave() throws Exception {
+		AppUser u = crearUsuario("deshabilitado1", "claveOriginal1", "deshabilitado1@test.cl");
+		u.setEnabled(false);
+		userRepo.save(u);
+
+		mockMvc.perform(post("/auth/forgot-password")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("usernameOrEmail", "deshabilitado1@test.cl"))))
+				.andExpect(status().isOk());
+
+		verifyNoInteractions(emailService);
+		AppUser actualizado = userRepo.findByUsername("deshabilitado1").orElseThrow();
+		assertThat(enc.matches("claveOriginal1", actualizado.getPassword())).isTrue();
+		assertThat(actualizado.isMustChangePassword()).isFalse();
+	}
+
+	@Test
+	void forgotPassword_usuarioBloqueado_noEnviaCorreoNiRotaLaClave() throws Exception {
+		AppUser u = crearUsuario("bloqueadoflag1", "claveOriginal1", "bloqueadoflag1@test.cl");
+		u.setLocked(true);
+		userRepo.save(u);
+
+		mockMvc.perform(post("/auth/forgot-password")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("usernameOrEmail", "bloqueadoflag1@test.cl"))))
+				.andExpect(status().isOk());
+
+		verifyNoInteractions(emailService);
+		AppUser actualizado = userRepo.findByUsername("bloqueadoflag1").orElseThrow();
+		assertThat(enc.matches("claveOriginal1", actualizado.getPassword())).isTrue();
+	}
+
+	@Test
 	void cambiarClave_datosValidos_limpiaMustChangePassword() throws Exception {
 		AppUser u = crearUsuario("cambio4", "claveVieja4", null);
 		u.setMustChangePassword(true);
