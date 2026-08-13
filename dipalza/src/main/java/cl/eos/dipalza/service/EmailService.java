@@ -10,9 +10,10 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
-// Solo se usa desde AuthController (recuperación de clave) y UsuarioAdminService
-// (credenciales iniciales), ambos ya restringidos a estos perfiles; evita exigir
-// configuración SMTP en dev-nosec/it, donde no se levantan esos controllers/servicios.
+// Solo se usa desde AuthController (olvidé mi clave) y UsuarioAdminService
+// (credenciales iniciales), ambos ya restringidos a estos perfiles; evita
+// exigir configuración SMTP en dev-nosec/it, donde no se levantan esos
+// controllers/servicios.
 @Service
 @Profile({ "dev-sec", "prod-sec" })
 public class EmailService {
@@ -23,26 +24,27 @@ public class EmailService {
 	@Value("${app.frontend-base-url:http://localhost:4200}")
 	private String frontendBaseUrl;
 
-	public void enviarCodigoRecuperacionClave(String destinatario, String codigo) {
-		String cuerpo = """
-				<p>Recibimos una solicitud para restablecer tu clave de Dipalza.</p>
-				<p>Tu código de recuperación es:</p>
-				<p style="font-size:28px;font-weight:bold;letter-spacing:4px;text-align:center;margin:16px 0;">%s</p>
-				<p>Este código vence en 30 minutos. Si no solicitaste este cambio, ignora este correo.</p>
-				""".formatted(codigo);
-		enviar(destinatario, "Dipalza - Código de recuperación de clave", cuerpo, null, null);
-	}
-
-	public void enviarCredencialesIniciales(String destinatario, String username, String claveInicial) {
+	public void enviarCredencialesIniciales(String destinatario, String username, String claveInicial, boolean esAdmin) {
 		String cuerpo = """
 				<p>Se creó una cuenta de Dipalza para ti.</p>
 				<p><strong>Usuario:</strong> %s<br/><strong>Clave inicial:</strong> %s</p>
-				<p>Te recomendamos cambiar esta clave la primera vez que inicies sesión.</p>
+				<p>Deberás cambiarla la primera vez que inicies sesión.</p>
 				""".formatted(username, claveInicial);
-		enviar(destinatario, "Dipalza - Tu cuenta fue creada", cuerpo, "Cambiar mi clave", frontendBaseUrl + "/#/perfil");
+		enviar(destinatario, "Dipalza - Tu cuenta fue creada", cuerpo, esAdmin);
 	}
 
-	private void enviar(String destinatario, String asunto, String cuerpoHtml, String textoBoton, String urlBoton) {
+	public void enviarClaveTemporalPorOlvido(String destinatario, String username, String claveTemporal, boolean esAdmin) {
+		String cuerpo = """
+				<p>Restablecimos tu clave de Dipalza a pedido tuyo.</p>
+				<p><strong>Usuario:</strong> %s<br/><strong>Clave temporal:</strong> %s</p>
+				<p>Deberás cambiarla la próxima vez que inicies sesión. Si no solicitaste este cambio, contacta al administrador.</p>
+				""".formatted(username, claveTemporal);
+		enviar(destinatario, "Dipalza - Tu clave fue restablecida", cuerpo, esAdmin);
+	}
+
+	private void enviar(String destinatario, String asunto, String cuerpoHtml, boolean esAdmin) {
+		String textoBoton = esAdmin ? "Cambiar mi clave" : null;
+		String urlBoton = esAdmin ? frontendBaseUrl + "/#/perfil" : null;
 		String html = construirHtml(cuerpoHtml, textoBoton, urlBoton);
 		try {
 			MimeMessage mimeMessage = mailSender.createMimeMessage();

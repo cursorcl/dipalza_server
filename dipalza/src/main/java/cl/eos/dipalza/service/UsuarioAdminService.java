@@ -74,7 +74,8 @@ public class UsuarioAdminService {
         boolean correoEnviado = false;
         if (email != null) {
             try {
-                emailService.enviarCredencialesIniciales(email, u.getUsername(), req.password());
+                boolean esAdmin = u.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
+                emailService.enviarCredencialesIniciales(email, u.getUsername(), req.password(), esAdmin);
                 correoEnviado = true;
             } catch (RuntimeException e) {
                 correoEnviado = false;

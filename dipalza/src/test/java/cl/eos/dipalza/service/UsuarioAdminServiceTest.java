@@ -24,6 +24,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -160,7 +161,7 @@ class UsuarioAdminServiceTest {
 
         service.crear(new CrearUsuarioDTO("nuevo", null, null, null, "claveLarga1"));
 
-        verify(emailService, never()).enviarCredencialesIniciales(anyString(), anyString(), anyString());
+        verify(emailService, never()).enviarCredencialesIniciales(anyString(), anyString(), anyString(), anyBoolean());
     }
 
     @Test
@@ -172,7 +173,7 @@ class UsuarioAdminServiceTest {
         CrearUsuarioResultDTO result = service.crear(
                 new CrearUsuarioDTO("nuevo", "nuevo@dipalza.cl", null, null, "claveLarga1"));
 
-        verify(emailService).enviarCredencialesIniciales("nuevo@dipalza.cl", "nuevo", "claveLarga1");
+        verify(emailService).enviarCredencialesIniciales("nuevo@dipalza.cl", "nuevo", "claveLarga1", false);
         assertThat(result.correoEnviado()).isTrue();
     }
 
@@ -182,7 +183,7 @@ class UsuarioAdminServiceTest {
         when(userRepo.findByEmail("nuevo@dipalza.cl")).thenReturn(Optional.empty());
         when(userRepo.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
         doThrow(new RuntimeException("SMTP down")).when(emailService)
-                .enviarCredencialesIniciales(anyString(), anyString(), anyString());
+                .enviarCredencialesIniciales(anyString(), anyString(), anyString(), anyBoolean());
 
         CrearUsuarioResultDTO result = service.crear(
                 new CrearUsuarioDTO("nuevo", "nuevo@dipalza.cl", null, null, "claveLarga1"));
