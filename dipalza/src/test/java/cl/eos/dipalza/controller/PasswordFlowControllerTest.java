@@ -179,6 +179,24 @@ class PasswordFlowControllerTest {
 	}
 
 	@Test
+	void cambiarClave_datosValidos_limpiaMustChangePassword() throws Exception {
+		AppUser u = crearUsuario("cambio4", "claveVieja4", null);
+		u.setMustChangePassword(true);
+		userRepo.save(u);
+		String token = jwt.generateAccess(u);
+
+		mockMvc.perform(put("/api/usuario/cambiar-clave")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(
+								Map.of("claveActual", "claveVieja4", "claveNueva", "claveNueva4"))))
+				.andExpect(status().isOk());
+
+		AppUser actualizado = userRepo.findByUsername("cambio4").orElseThrow();
+		assertThat(actualizado.isMustChangePassword()).isFalse();
+	}
+
+	@Test
 	void weblogin_usuarioConMustChangePassword_loRetornaEnLaRespuesta() throws Exception {
 		AppUser u = crearUsuario("debecambiar1", "claveTemp1", null);
 		u.setMustChangePassword(true);

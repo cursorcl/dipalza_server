@@ -155,6 +155,18 @@ class UsuarioAdminServiceTest {
     }
 
     @Test
+    void crear_dejaMustChangePasswordEnTrue() {
+        when(userRepo.findByUsername("nuevo")).thenReturn(Optional.empty());
+        when(userRepo.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.crear(new CrearUsuarioDTO("nuevo", null, null, null, "claveLarga1"));
+
+        ArgumentCaptor<AppUser> captor = ArgumentCaptor.forClass(AppUser.class);
+        verify(userRepo).save(captor.capture());
+        assertThat(captor.getValue().isMustChangePassword()).isTrue();
+    }
+
+    @Test
     void crear_sinEmail_noIntentaEnviarCorreo() {
         when(userRepo.findByUsername("nuevo")).thenReturn(Optional.empty());
         when(userRepo.save(any(AppUser.class))).thenAnswer(inv -> inv.getArgument(0));

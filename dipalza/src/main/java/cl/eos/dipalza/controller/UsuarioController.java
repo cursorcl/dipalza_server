@@ -49,6 +49,7 @@ public class UsuarioController {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La clave nueva debe ser distinta de la actual");
 
 		u.setPassword(enc.encode(req.claveNueva()));
+		u.setMustChangePassword(false);
 		users.save(u);
 
 		refreshTokenService.revocarTokensDeUsuario(u);

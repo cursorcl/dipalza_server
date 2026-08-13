@@ -68,6 +68,7 @@ public class UsuarioAdminService {
         u.setPassword(passwordEncoder.encode(req.password()));
         u.setEnabled(true);
         u.setLocked(false);
+        u.setMustChangePassword(true);
         u.setVendedor(vendedor);
         userRepo.save(u);
 
