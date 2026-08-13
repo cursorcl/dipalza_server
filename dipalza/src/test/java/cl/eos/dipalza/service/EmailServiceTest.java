@@ -62,6 +62,32 @@ class EmailServiceTest {
     }
 
     @Test
+    void enviarCredencialesIniciales_escapaElHtmlDelUsername() throws Exception {
+        service.enviarCredencialesIniciales("nuevo@dipalza.cl", "<script>alert(1)</script>", "Cl4ve!Segura", false);
+
+        ArgumentCaptor<MimeMessage> captor = ArgumentCaptor.forClass(MimeMessage.class);
+        verify(mailSender).send(captor.capture());
+
+        String contenido = (String) captor.getValue().getContent();
+        assertThat(contenido)
+                .doesNotContain("<script>")
+                .contains("&lt;script&gt;alert(1)&lt;/script&gt;");
+    }
+
+    @Test
+    void enviarClaveTemporalPorOlvido_escapaElHtmlDelUsername() throws Exception {
+        service.enviarClaveTemporalPorOlvido("nuevo@dipalza.cl", "<b>jperez</b>", "Tmp123456789", false);
+
+        ArgumentCaptor<MimeMessage> captor = ArgumentCaptor.forClass(MimeMessage.class);
+        verify(mailSender).send(captor.capture());
+
+        String contenido = (String) captor.getValue().getContent();
+        assertThat(contenido)
+                .doesNotContain("<b>jperez</b>")
+                .contains("&lt;b&gt;jperez&lt;/b&gt;");
+    }
+
+    @Test
     void enviarClaveTemporalPorOlvido_noAdmin_sinBoton() throws Exception {
         service.enviarClaveTemporalPorOlvido("nuevo@dipalza.cl", "jperez", "Tmp123456789", false);
 

@@ -9,6 +9,7 @@ import org.springframework.mail.MailPreparationException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 // Solo se usa desde AuthController (olvidé mi clave) y UsuarioAdminService
 // (credenciales iniciales), ambos ya restringidos a estos perfiles; evita
@@ -29,7 +30,7 @@ public class EmailService {
 				<p>Se creó una cuenta de Dipalza para ti.</p>
 				<p><strong>Usuario:</strong> %s<br/><strong>Clave inicial:</strong> %s</p>
 				<p>Deberás cambiarla la primera vez que inicies sesión.</p>
-				""".formatted(username, claveInicial);
+				""".formatted(HtmlUtils.htmlEscape(username), HtmlUtils.htmlEscape(claveInicial));
 		enviar(destinatario, "Dipalza - Tu cuenta fue creada", cuerpo, esAdmin);
 	}
 
@@ -38,7 +39,7 @@ public class EmailService {
 				<p>Restablecimos tu clave de Dipalza a pedido tuyo.</p>
 				<p><strong>Usuario:</strong> %s<br/><strong>Clave temporal:</strong> %s</p>
 				<p>Deberás cambiarla la próxima vez que inicies sesión. Si no solicitaste este cambio, contacta al administrador.</p>
-				""".formatted(username, claveTemporal);
+				""".formatted(HtmlUtils.htmlEscape(username), HtmlUtils.htmlEscape(claveTemporal));
 		enviar(destinatario, "Dipalza - Tu clave fue restablecida", cuerpo, esAdmin);
 	}
 
