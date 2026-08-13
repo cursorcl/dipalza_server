@@ -9,6 +9,7 @@ import cl.eos.dipalza.model.CrearUsuarioResultDTO;
 import cl.eos.dipalza.model.UsuarioDTO;
 import cl.eos.dipalza.repository.UserRepo;
 import cl.eos.dipalza.repository.VendedorRepository;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,7 +18,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+// Depende de EmailService (credenciales iniciales), que solo existe en los
+// perfiles con seguridad; se restringe a los mismos perfiles que
+// UsuarioAdminController para no romper el contexto en dev-nosec.
 @Service
+@Profile({ "dev-sec", "prod-sec" })
 public class UsuarioAdminService {
 
     private static final int CLAVE_LARGO_MINIMO = 8;
