@@ -21,6 +21,7 @@ public class AppUser {
 	private String email;
 	private boolean enabled = true;
 	private boolean locked = false;
+	@Column(name = "must_change_password")
 	private boolean mustChangePassword = false;
 	@Column(name = "created_at", insertable = false, updatable = false)
 	private LocalDate createdAt;
