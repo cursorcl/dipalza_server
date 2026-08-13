@@ -21,6 +21,7 @@ public class AppUser {
 	private String email;
 	private boolean enabled = true;
 	private boolean locked = false;
+	private boolean mustChangePassword = false;
 	@Column(name = "created_at", insertable = false, updatable = false)
 	private LocalDate createdAt;
 
@@ -82,6 +83,14 @@ public class AppUser {
 
 	public void setLocked(boolean locked) {
 		this.locked = locked;
+	}
+
+	public boolean isMustChangePassword() {
+		return mustChangePassword;
+	}
+
+	public void setMustChangePassword(boolean mustChangePassword) {
+		this.mustChangePassword = mustChangePassword;
 	}
 
 	public LocalDate getCreatedAt() {

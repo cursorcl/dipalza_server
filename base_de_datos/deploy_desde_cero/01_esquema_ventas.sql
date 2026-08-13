@@ -23,6 +23,7 @@ CREATE TABLE dbo.app_user (
     password   varchar(100) COLLATE Modern_Spanish_CI_AS NOT NULL,
     enabled    bit  NOT NULL DEFAULT 1,
     locked     bit  NOT NULL DEFAULT 0,
+    must_change_password bit NOT NULL DEFAULT 0,
     created_at date NOT NULL DEFAULT CONVERT(date, SYSUTCDATETIME()),
     updated_at date NOT NULL DEFAULT CONVERT(date, SYSUTCDATETIME()),
     codigo_vendedor varchar(3) COLLATE Modern_Spanish_CI_AS NULL,  -- [DRIFT] existe en producción pero no estaba en install_dipalza_sync.sql; vincula la cuenta de login a un vendedor
@@ -196,19 +197,6 @@ CREATE TABLE dbo.app_refresh_token (
     CONSTRAINT PK_app_refresh_token PRIMARY KEY (id),
     CONSTRAINT UQ_app_refresh_token UNIQUE (user_id, token_hash),
     CONSTRAINT FK_app_refresh_token_user FOREIGN KEY (user_id) REFERENCES dbo.app_user(id)
-);
-
--- agregada en migration_20260808.sql, para recuperación de clave por correo
-CREATE TABLE dbo.app_password_reset_token (
-    id         bigint IDENTITY(1,1) NOT NULL,
-    user_id    bigint NOT NULL,
-    token_hash varchar(200) COLLATE Modern_Spanish_CI_AS NOT NULL,
-    expires_at datetime NOT NULL,
-    used       bit NOT NULL DEFAULT 0,
-    created_at datetime NOT NULL DEFAULT GETDATE(),
-    CONSTRAINT PK_app_password_reset_token PRIMARY KEY (id),
-    CONSTRAINT UQ_app_password_reset_token UNIQUE (user_id, token_hash),
-    CONSTRAINT FK_app_password_reset_token_user FOREIGN KEY (user_id) REFERENCES dbo.app_user(id)
 );
 
 CREATE TABLE dbo.app_user_roles (
