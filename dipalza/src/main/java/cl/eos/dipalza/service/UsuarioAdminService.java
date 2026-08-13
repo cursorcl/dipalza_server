@@ -9,6 +9,8 @@ import cl.eos.dipalza.model.CrearUsuarioResultDTO;
 import cl.eos.dipalza.model.UsuarioDTO;
 import cl.eos.dipalza.repository.UserRepo;
 import cl.eos.dipalza.repository.VendedorRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +26,8 @@ import java.util.List;
 @Service
 @Profile({ "dev-sec", "prod-sec" })
 public class UsuarioAdminService {
+
+    private static final Logger log = LoggerFactory.getLogger(UsuarioAdminService.class);
 
     private static final int CLAVE_LARGO_MINIMO = 8;
 
@@ -80,11 +84,17 @@ public class UsuarioAdminService {
         boolean correoEnviado = false;
         if (email != null) {
             try {
+                // Hoy siempre es false: este flujo no asigna roles (se asignan
+                // fuera de la gestión de usuarios), así que el correo de
+                // credenciales iniciales nunca lleva el botón "Cambiar mi clave".
+                // Se deja calculado para cuando el alta soporte roles.
                 boolean esAdmin = u.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
                 emailService.enviarCredencialesIniciales(email, u.getUsername(), req.password(), esAdmin);
                 correoEnviado = true;
             } catch (RuntimeException e) {
                 correoEnviado = false;
+                log.warn("No se pudo enviar el correo de credenciales iniciales al usuario {} ({})",
+                        u.getUsername(), email, e);
             }
         }
 
