@@ -1,3 +1,10 @@
+## [1.12.2](https://github.com/cursorcl/dipalza_server/compare/v1.12.1...v1.12.2) (2026-08-14)
+
+
+### Bug Fixes
+
+* resincroniza el frontend embebido y actualiza deploy_desde_cero ([#46](https://github.com/cursorcl/dipalza_server/issues/46)) ([07e5eaa](https://github.com/cursorcl/dipalza_server/commit/07e5eaaac93ae7d373b6a1f6c0d05cfae3512890))
+
 ## [1.12.1](https://github.com/cursorcl/dipalza_server/compare/v1.12.0...v1.12.1) (2026-08-12)
 
 
