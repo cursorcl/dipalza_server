@@ -90,6 +90,12 @@ public class AuthController {
 		if (!u.isEnabled() || u.isLocked() || !enc.matches(req.password(), u.getPassword()))
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
 
+		// 422 (no 409/402/401): esos códigos tienen mensajes fijos hardcodeados en
+		// el cliente mobile (VenderdorProvider.loginUsuario) para otros escenarios.
+		if (u.getVendedor() == null)
+			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+					"Esta cuenta no tiene un vendedor asociado y no puede iniciar sesión desde la aplicación móvil.");
+
 		// buscar Vendedor
 	    var vendedorOpt = vendedorRepo.findById(u.getVendedor().getId());
 	    VendedorDTO vendedorDto = vendedorOpt.map(VendedorMapper::toDto).orElse(null);
