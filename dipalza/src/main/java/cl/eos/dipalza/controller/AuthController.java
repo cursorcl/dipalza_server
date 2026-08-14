@@ -1,12 +1,10 @@
 package cl.eos.dipalza.controller;
 
 import cl.eos.dipalza.entity.AppUser;
-import cl.eos.dipalza.entity.PasswordResetToken;
 import cl.eos.dipalza.entity.RefreshToken;
 import cl.eos.dipalza.entity.Vendedor;
 import cl.eos.dipalza.mapper.VendedorMapper;
 import cl.eos.dipalza.model.VendedorDTO;
-import cl.eos.dipalza.repository.PasswordResetTokenRepo;
 import cl.eos.dipalza.repository.RefreshTokenRepo;
 import cl.eos.dipalza.repository.UserRepo;
 import cl.eos.dipalza.repository.VendedorRepository;
@@ -18,6 +16,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,7 +38,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Profile({"dev-sec","prod-sec"})
 public class AuthController {
 
-	private static final long RESET_TOKEN_MINUTOS = 30;
 	private static final int CLAVE_LARGO_MINIMO = 8;
 	private static final long RESET_RATE_LIMIT_SEGUNDOS = 60;
 
@@ -48,7 +46,6 @@ public class AuthController {
 	private final JwtService jwt;
 	private final RefreshTokenRepo refreshTokenRepo;
 	private final VendedorRepository vendedorRepo;
-	private final PasswordResetTokenRepo resetTokenRepo;
 	private final EmailService emailService;
 	private final RefreshTokenService refreshTokenService;
 	private final SecureRandom secureRandom = new SecureRandom();
@@ -61,28 +58,25 @@ public class AuthController {
 	public record LoginReq(String username, String password) {
 	}
 
-	public record TokenResponse(String accessToken, String refreshToken, long expiresInSeconds, VendedorDTO vendedor) {
+	public record TokenResponse(String accessToken, String refreshToken, long expiresInSeconds, VendedorDTO vendedor,
+			boolean mustChangePassword) {
 	}
 
 
-	public record WebLoginRes(String token, String refreshToken, long expiresInSeconds, long id, String username, String firstName, String lastName ) {
+	public record WebLoginRes(String token, String refreshToken, long expiresInSeconds, long id, String username,
+			String firstName, String lastName, boolean mustChangePassword) {
 	}
 
 	public record ForgotPasswordReq(String usernameOrEmail) {
 	}
 
-	public record ResetPasswordReq(String username, String codigo, String claveNueva) {
-	}
-
 	public AuthController(UserRepo users, VendedorRepository vendedorRepo, PasswordEncoder enc, JwtService jwt,
-			RefreshTokenRepo rtRepo, PasswordResetTokenRepo resetTokenRepo, EmailService emailService,
-			RefreshTokenService refreshTokenService) {
+			RefreshTokenRepo rtRepo, EmailService emailService, RefreshTokenService refreshTokenService) {
 		this.users = users;
 		this.enc = enc;
 		this.jwt = jwt;
 		this.refreshTokenRepo = rtRepo;
 		this.vendedorRepo = vendedorRepo;
-		this.resetTokenRepo = resetTokenRepo;
 		this.emailService = emailService;
 		this.refreshTokenService = refreshTokenService;
 	}
@@ -95,6 +89,12 @@ public class AuthController {
 
 		if (!u.isEnabled() || u.isLocked() || !enc.matches(req.password(), u.getPassword()))
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+
+		// 422 (no 409/402/401): esos códigos tienen mensajes fijos hardcodeados en
+		// el cliente mobile (VenderdorProvider.loginUsuario) para otros escenarios.
+		if (u.getVendedor() == null)
+			throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+					"Esta cuenta no tiene un vendedor asociado y no puede iniciar sesión desde la aplicación móvil.");
 
 		// buscar Vendedor
 	    var vendedorOpt = vendedorRepo.findById(u.getVendedor().getId());
@@ -144,7 +144,7 @@ public class AuthController {
 		rt.setExpiresAt(Instant.now().plus(refreshHr, ChronoUnit.HOURS));
 		refreshTokenRepo.save(rt);
 
-		return new TokenResponse(access, refreshJwt, refreshHr * 60L * 60L, vendedorDTO);
+		return new TokenResponse(access, refreshJwt, refreshHr * 60L * 60L, vendedorDTO, u.isMustChangePassword());
 	}
 	
 	
@@ -180,7 +180,7 @@ public class AuthController {
 
 		
 
-		return new WebLoginRes(access, refreshRaw, 60L * 10, id, userName, firstName, lastName); // 10 min si así configuraste
+		return new WebLoginRes(access, refreshRaw, 60L * 10, id, userName, firstName, lastName, u.isMustChangePassword()); // 10 min si así configuraste
 	}
 
 	public record RefreshReq(String refreshToken) {
@@ -226,10 +226,17 @@ public class AuthController {
 		
 		
 
-		return new WebLoginRes(access, newRefreshRaw, 60L * 10, id, userName, firstName, lastName); // 10 min si así configuraste
+		return new WebLoginRes(access, newRefreshRaw, 60L * 10, id, userName, firstName, lastName, u.isMustChangePassword()); // 10 min si así configuraste
 	}
 	
 	
+	// Transaccional para que la rotación de clave, el flag de cambio obligatorio,
+	// la revocación de tokens y el envío del correo sean atómicos: si el SMTP
+	// falla, se revierte todo y el usuario conserva su clave (antes quedaba con
+	// una clave que nunca recibió y sin sesiones: lockout total). Además mantiene
+	// el AppUser attached durante todo el flujo, cerrando la ventana en que un
+	// save() de un entity detached podía revertir cambios hechos por un admin.
+	@Transactional
 	@PostMapping("/forgot-password")
 	public void forgotPassword(@RequestBody ForgotPasswordReq req) {
 		String clave = req.usernameOrEmail() == null ? "" : req.usernameOrEmail().trim();
@@ -237,8 +244,12 @@ public class AuthController {
 		Optional<AppUser> userOpt = clave.contains("@") ? users.findByEmail(clave) : users.findByUsername(clave);
 
 		// Responde siempre igual, exista o no el usuario/correo, para no filtrar
-		// qué cuentas están registradas.
+		// qué cuentas están registradas. Las cuentas deshabilitadas o bloqueadas
+		// se tratan como inexistentes: no tiene sentido enviarles una clave
+		// temporal si igual no pueden iniciar sesión (login valida ambos flags).
 		if (userOpt.isEmpty() || userOpt.get().getEmail() == null)
+			return;
+		if (!userOpt.get().isEnabled() || userOpt.get().isLocked())
 			return;
 
 		AppUser u = userOpt.get();
@@ -248,40 +259,22 @@ public class AuthController {
 			return;
 		ultimaSolicitudPorUsername.put(u.getUsername(), Instant.now());
 
-		String codigo = String.format("%06d", secureRandom.nextInt(1_000_000));
+		String claveTemporal = generarClaveTemporal();
+		u.setPassword(enc.encode(claveTemporal));
+		u.setMustChangePassword(true);
+		users.save(u);
+		refreshTokenService.revocarTokensDeUsuario(u);
 
-		var token = new PasswordResetToken();
-		token.setUser(u);
-		token.setTokenHash(hashToken(codigo));
-		token.setExpiresAt(Instant.now().plus(RESET_TOKEN_MINUTOS, ChronoUnit.MINUTES));
-		resetTokenRepo.save(token);
-
-		emailService.enviarCodigoRecuperacionClave(u.getEmail(), codigo);
+		boolean esAdmin = u.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
+		emailService.enviarClaveTemporalPorOlvido(u.getEmail(), u.getUsername(), claveTemporal, esAdmin);
 	}
 
-	@PostMapping("/reset-password")
-	public void resetPassword(@RequestBody ResetPasswordReq req) {
-		var u = users.findByUsername(req.username())
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código inválido o vencido"));
-
-		var token = resetTokenRepo.findByTokenHashAndUsedFalse(hashToken(req.codigo()))
-				.filter(t -> t.getUser().getId().equals(u.getId()))
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código inválido o vencido"));
-
-		if (!token.getExpiresAt().isAfter(Instant.now()))
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Código inválido o vencido");
-
-		if (req.claveNueva() == null || req.claveNueva().length() < CLAVE_LARGO_MINIMO)
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-					"La clave nueva debe tener al menos " + CLAVE_LARGO_MINIMO + " caracteres");
-
-		token.setUsed(true);
-		resetTokenRepo.save(token);
-
-		u.setPassword(enc.encode(req.claveNueva()));
-		users.save(u);
-
-		refreshTokenService.revocarTokensDeUsuario(u);
+	private String generarClaveTemporal() {
+		String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
+		StringBuilder sb = new StringBuilder(12);
+		for (int i = 0; i < 12; i++)
+			sb.append(chars.charAt(secureRandom.nextInt(chars.length())));
+		return sb.toString();
 	}
 
 	private String hashToken(String token) {

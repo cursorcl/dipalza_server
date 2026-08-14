@@ -33,3 +33,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Config local (secretos de desarrollo, nunca se commitea) ###
+config/

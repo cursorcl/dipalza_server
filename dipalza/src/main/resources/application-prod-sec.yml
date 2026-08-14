@@ -46,6 +46,7 @@ logging:
 app:
   cors:
     allowed-origins: "https://ventas.dynalias.net"
+  frontend-base-url: "https://ventas.dynalias.net"
 
 security:
   jwt:

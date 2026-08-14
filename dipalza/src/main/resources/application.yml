@@ -17,6 +17,12 @@ server:
   port: 8080
   tomcat:
     relaxed-query-chars: '|,{,},[,],^,`,<,>,",%'
+  error:
+    # Por defecto Spring Boot omite "message" del cuerpo JSON de error, así que
+    # el motivo pasado a ResponseStatusException(status, "mensaje") nunca
+    # llegaba a los clientes (mobile/web) -- solo veían el status y la frase
+    # genérica del código HTTP.
+    include-message: always
 # logging común
 logging:
   level:

@@ -16,7 +16,7 @@ public class CorsConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")               // 1. Aplica a TODAS las rutas de la API
                 .allowedOrigins(allowedOrigins)  // 2. Orígenes permitidos, según el perfil activo
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // 3. Verbos permitidos
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS") // 3. Verbos permitidos
                 .allowedHeaders("*")             // 4. Permite todos los headers (necesario para JWT)
                 .allowCredentials(true);         // 5. Permite cookies o credenciales si fuera necesario
     }

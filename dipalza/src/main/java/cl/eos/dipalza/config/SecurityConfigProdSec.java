@@ -46,6 +46,7 @@ public class SecurityConfigProdSec {
                     .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                     .requestMatchers("/ws-posiciones", "/ws-posiciones/**").permitAll()
                     .requestMatchers("/auth/**").permitAll()
+                    .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
                     .requestMatchers("/api/**").authenticated()
                     .requestMatchers(HttpMethod.GET, "/{path:[^\\.]*}", "/**/{path:[^\\.]*}").permitAll()
                     .anyRequest().authenticated()

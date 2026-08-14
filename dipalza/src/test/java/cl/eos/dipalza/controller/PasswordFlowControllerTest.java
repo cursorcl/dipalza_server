@@ -24,11 +24,15 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 // Cubre los endpoints de cambio de clave (autenticado y "olvidé mi clave")
@@ -123,27 +127,29 @@ class PasswordFlowControllerTest {
 	}
 
 	@Test
-	void forgotPassword_yResetPassword_flujoCompletoActualizaLaClave() throws Exception {
-		crearUsuario("recupera1", "claveOriginal1", "recupera1@test.cl");
+	void forgotPassword_generaClaveTemporalYMarcaMustChangePassword() throws Exception {
+		AppUser creado = crearUsuario("recupera1", "claveOriginal1", "recupera1@test.cl");
+		String tokenPrevio = jwt.generateAccess(creado);
+		RefreshToken rt = new RefreshToken();
+		rt.setUser(creado);
+		rt.setTokenHash("hash-previo-recupera1");
+		rt.setExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
+		refreshTokenRepo.save(rt);
 
 		mockMvc.perform(post("/auth/forgot-password")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(Map.of("usernameOrEmail", "recupera1@test.cl"))))
 				.andExpect(status().isOk());
 
-		ArgumentCaptor<String> codigoCaptor = ArgumentCaptor.forClass(String.class);
-		verify(emailService).enviarCodigoRecuperacionClave(org.mockito.ArgumentMatchers.eq("recupera1@test.cl"),
-				codigoCaptor.capture());
-		String codigo = codigoCaptor.getValue();
-
-		mockMvc.perform(post("/auth/reset-password")
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(objectMapper.writeValueAsString(
-								Map.of("username", "recupera1", "codigo", codigo, "claveNueva", "claveNuevaReset1"))))
-				.andExpect(status().isOk());
+		ArgumentCaptor<String> claveCaptor = ArgumentCaptor.forClass(String.class);
+		verify(emailService).enviarClaveTemporalPorOlvido(org.mockito.ArgumentMatchers.eq("recupera1@test.cl"),
+				org.mockito.ArgumentMatchers.eq("recupera1"), claveCaptor.capture(), org.mockito.ArgumentMatchers.eq(false));
+		String claveTemporal = claveCaptor.getValue();
 
 		AppUser actualizado = userRepo.findByUsername("recupera1").orElseThrow();
-		assertThat(enc.matches("claveNuevaReset1", actualizado.getPassword())).isTrue();
+		assertThat(enc.matches(claveTemporal, actualizado.getPassword())).isTrue();
+		assertThat(actualizado.isMustChangePassword()).isTrue();
+		assertThat(refreshTokenRepo.findAll().stream().filter(t -> t.getUser().getId().equals(creado.getId()))).isEmpty();
 	}
 
 	@Test
@@ -160,7 +166,7 @@ class PasswordFlowControllerTest {
 						.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk());
 
-		verify(emailService).enviarCodigoRecuperacionClave(anyString(), anyString());
+		verify(emailService).enviarClaveTemporalPorOlvido(anyString(), anyString(), anyString(), anyBoolean());
 	}
 
 	@Test
@@ -174,13 +180,116 @@ class PasswordFlowControllerTest {
 	}
 
 	@Test
-	void resetPassword_codigoInvalido_retorna400() throws Exception {
-		crearUsuario("recupera3", "claveOriginal3", "recupera3@test.cl");
+	void forgotPassword_usuarioDeshabilitado_noEnviaCorreoNiRotaLaClave() throws Exception {
+		AppUser u = crearUsuario("deshabilitado1", "claveOriginal1", "deshabilitado1@test.cl");
+		u.setEnabled(false);
+		userRepo.save(u);
 
-		mockMvc.perform(post("/auth/reset-password")
+		mockMvc.perform(post("/auth/forgot-password")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("usernameOrEmail", "deshabilitado1@test.cl"))))
+				.andExpect(status().isOk());
+
+		verifyNoInteractions(emailService);
+		AppUser actualizado = userRepo.findByUsername("deshabilitado1").orElseThrow();
+		assertThat(enc.matches("claveOriginal1", actualizado.getPassword())).isTrue();
+		assertThat(actualizado.isMustChangePassword()).isFalse();
+	}
+
+	@Test
+	void forgotPassword_usuarioBloqueado_noEnviaCorreoNiRotaLaClave() throws Exception {
+		AppUser u = crearUsuario("bloqueadoflag1", "claveOriginal1", "bloqueadoflag1@test.cl");
+		u.setLocked(true);
+		userRepo.save(u);
+
+		mockMvc.perform(post("/auth/forgot-password")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("usernameOrEmail", "bloqueadoflag1@test.cl"))))
+				.andExpect(status().isOk());
+
+		verifyNoInteractions(emailService);
+		AppUser actualizado = userRepo.findByUsername("bloqueadoflag1").orElseThrow();
+		assertThat(enc.matches("claveOriginal1", actualizado.getPassword())).isTrue();
+	}
+
+	@Test
+	void cambiarClave_datosValidos_limpiaMustChangePassword() throws Exception {
+		AppUser u = crearUsuario("cambio4", "claveVieja4", null);
+		u.setMustChangePassword(true);
+		userRepo.save(u);
+		String token = jwt.generateAccess(u);
+
+		mockMvc.perform(put("/api/usuario/cambiar-clave")
+						.header("Authorization", "Bearer " + token)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(
-								Map.of("username", "recupera3", "codigo", "000000", "claveNueva", "claveNuevaX1"))))
-				.andExpect(status().isBadRequest());
+								Map.of("claveActual", "claveVieja4", "claveNueva", "claveNueva4"))))
+				.andExpect(status().isOk());
+
+		AppUser actualizado = userRepo.findByUsername("cambio4").orElseThrow();
+		assertThat(actualizado.isMustChangePassword()).isFalse();
+	}
+
+	@Test
+	void apiNormal_usuarioConMustChangePassword_retorna403() throws Exception {
+		AppUser u = crearUsuario("bloqueado1", "claveTemp1", null);
+		u.setMustChangePassword(true);
+		userRepo.save(u);
+		String token = jwt.generateAccess(u);
+
+		mockMvc.perform(get("/api/vendedores").header("Authorization", "Bearer " + token))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void cambiarClave_usuarioConMustChangePassword_noQuedaBloqueado() throws Exception {
+		AppUser u = crearUsuario("bloqueado2", "claveTemp2", null);
+		u.setMustChangePassword(true);
+		userRepo.save(u);
+		String token = jwt.generateAccess(u);
+
+		mockMvc.perform(put("/api/usuario/cambiar-clave")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(
+								Map.of("claveActual", "claveTemp2", "claveNueva", "claveNueva2"))))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void apiNormal_usuarioSinMustChangePassword_sigueFuncionando() throws Exception {
+		AppUser u = crearUsuario("bloqueado3", "claveNormal3", null);
+		String token = jwt.generateAccess(u);
+
+		mockMvc.perform(get("/api/vendedores").header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void auth_usuarioConMustChangePassword_puedeSeguirAutenticandose() throws Exception {
+		AppUser u = crearUsuario("bloqueado4", "claveTemp4", null);
+		u.setMustChangePassword(true);
+		userRepo.save(u);
+		String token = jwt.generateAccess(u);
+
+		mockMvc.perform(post("/auth/weblogin")
+						.header("Authorization", "Bearer " + token)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(
+								Map.of("username", "bloqueado4", "password", "claveTemp4"))))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void weblogin_usuarioConMustChangePassword_loRetornaEnLaRespuesta() throws Exception {
+		AppUser u = crearUsuario("debecambiar1", "claveTemp1", null);
+		u.setMustChangePassword(true);
+		userRepo.save(u);
+
+		mockMvc.perform(post("/auth/weblogin")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(Map.of("username", "debecambiar1", "password", "claveTemp1"))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.mustChangePassword", is(true)));
 	}
 }
