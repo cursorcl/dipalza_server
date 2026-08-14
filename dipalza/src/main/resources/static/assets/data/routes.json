@@ -65,6 +65,17 @@
       "badge": "",
       "badgeClass": "",
       "submenu": []
+    },
+    {
+      "path": "usuarios",
+      "title": "Gestionar Usuarios",
+      "iconType": "feather",
+      "icon": "users",
+      "class": "",
+      "groupTitle": false,
+      "badge": "",
+      "badgeClass": "",
+      "submenu": []
     }
   ]
 }
