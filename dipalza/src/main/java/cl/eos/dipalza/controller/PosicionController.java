@@ -1,6 +1,7 @@
 package cl.eos.dipalza.controller;
 
 import cl.eos.dipalza.model.HistorialPosicionDTO;
+import cl.eos.dipalza.model.HistorialResumenDiaDTO;
 import cl.eos.dipalza.model.PosicionDTO;
 import cl.eos.dipalza.service.PosicionService;
 import cl.eos.dipalza.specifications.PosicionFilter;
@@ -33,6 +34,15 @@ public class PosicionController {
 
         // Llamada al servicio, delegando la lógica de negocio
         List<HistorialPosicionDTO> dtos = posicionService.buscarHistorico(filter);
+        return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/historico/resumen")
+    public ResponseEntity<List<HistorialResumenDiaDTO>> obtenerResumenHistorico(
+            @RequestParam String vendedorCodigo,
+            @RequestParam String vendedorTipo) {
+
+        List<HistorialResumenDiaDTO> dtos = posicionService.buscarResumenHistorico(vendedorCodigo, vendedorTipo);
         return ResponseEntity.ok(dtos);
     }
 

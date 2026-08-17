@@ -1,6 +1,7 @@
 package cl.eos.dipalza.controller;
 
 import cl.eos.dipalza.model.HistorialPosicionDTO;
+import cl.eos.dipalza.model.HistorialResumenDiaDTO;
 import cl.eos.dipalza.model.PosicionDTO;
 import cl.eos.dipalza.service.PosicionService;
 import cl.eos.dipalza.specifications.PosicionFilter;
@@ -15,6 +16,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -57,6 +59,21 @@ class PosicionControllerTest {
                         .content(objectMapper.writeValueAsString(filter)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)));
+    }
+
+    @Test
+    void obtenerResumenHistorico_retorna200ConLista() throws Exception {
+        HistorialResumenDiaDTO dto = new HistorialResumenDiaDTO(
+                LocalDate.of(2026, 8, 10), 120L,
+                LocalDateTime.of(2026, 8, 10, 10, 0), LocalDateTime.of(2026, 8, 10, 19, 0));
+        when(service.buscarResumenHistorico("V01", "0 ")).thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/posicion/historico/resumen")
+                        .param("vendedorCodigo", "V01")
+                        .param("vendedorTipo", "0 "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].cantidadPuntos", is(120)));
     }
 
     @Test

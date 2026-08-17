@@ -3,6 +3,7 @@ package cl.eos.dipalza.service;
 import cl.eos.dipalza.entity.Posicion;
 import cl.eos.dipalza.entity.Vendedor;
 import cl.eos.dipalza.entity.ids.VendedorId;
+import cl.eos.dipalza.model.HistorialResumenDiaDTO;
 import cl.eos.dipalza.model.PosicionDTO;
 import cl.eos.dipalza.repository.HistorialPosicionRepository;
 import cl.eos.dipalza.repository.PosicionRepository;
@@ -15,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -112,6 +114,36 @@ class PosicionServiceTest {
         verify(deteccionParadaService).procesarNuevoPunto(
                 idCaptor.capture(), any(Vendedor.class), eq(dto.latitud()), eq(dto.longitud()), eq(dto.fechaHora()));
         assertThat(idCaptor.getValue().getCodigo()).isEqualTo(dto.vendedorId());
+    }
+
+    @Test
+    void buscarResumenHistorico_mapeaProyeccionesDelRepositorioADTO() {
+        HistorialPosicionRepository.ResumenDiaProjection proyeccion = mock(HistorialPosicionRepository.ResumenDiaProjection.class);
+        when(proyeccion.getDia()).thenReturn(LocalDate.of(2026, 8, 10));
+        when(proyeccion.getCantidadPuntos()).thenReturn(120L);
+        when(proyeccion.getHoraInicio()).thenReturn(LocalDateTime.of(2026, 8, 10, 10, 0));
+        when(proyeccion.getHoraFin()).thenReturn(LocalDateTime.of(2026, 8, 10, 19, 0));
+        when(historialRepo.resumenPorDia(eq("V01"), eq("0 "), any())).thenReturn(List.of(proyeccion));
+
+        List<HistorialResumenDiaDTO> resultado = service.buscarResumenHistorico("V01", "0 ");
+
+        assertThat(resultado).hasSize(1);
+        HistorialResumenDiaDTO dto = resultado.get(0);
+        assertThat(dto.dia()).isEqualTo(LocalDate.of(2026, 8, 10));
+        assertThat(dto.cantidadPuntos()).isEqualTo(120L);
+        assertThat(dto.horaInicio()).isEqualTo(LocalDateTime.of(2026, 8, 10, 10, 0));
+        assertThat(dto.horaFin()).isEqualTo(LocalDateTime.of(2026, 8, 10, 19, 0));
+    }
+
+    @Test
+    void buscarResumenHistorico_consultaDesdeHace30Dias() {
+        when(historialRepo.resumenPorDia(any(), any(), any())).thenReturn(List.of());
+
+        service.buscarResumenHistorico("V01", "0 ");
+
+        ArgumentCaptor<LocalDateTime> desdeCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(historialRepo).resumenPorDia(eq("V01"), eq("0 "), desdeCaptor.capture());
+        assertThat(desdeCaptor.getValue()).isEqualTo(LocalDate.now().minusDays(30).atStartOfDay());
     }
 
     @Test
