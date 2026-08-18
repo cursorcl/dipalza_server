@@ -1,3 +1,10 @@
+## [1.13.1](https://github.com/cursorcl/dipalza_server/compare/v1.13.0...v1.13.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* actualiza el frontend embebido a dipalza_web_client v1.8.0 ([#49](https://github.com/cursorcl/dipalza_server/issues/49)) ([61e71d0](https://github.com/cursorcl/dipalza_server/commit/61e71d0e03efbe49c78553f2246cec4afff121dc))
+
 # [1.13.0](https://github.com/cursorcl/dipalza_server/compare/v1.12.3...v1.13.0) (2026-08-18)
 
 
