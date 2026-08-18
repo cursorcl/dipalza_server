@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/cursorcl/dipalza_server/compare/v1.12.3...v1.13.0) (2026-08-18)
+
+
+### Features
+
+* endpoint de resumen historico de posicion por dia ([#48](https://github.com/cursorcl/dipalza_server/issues/48)) ([71937b5](https://github.com/cursorcl/dipalza_server/commit/71937b56641402e59ad97c748da45ed004240bab))
+
 ## [1.12.3](https://github.com/cursorcl/dipalza_server/compare/v1.12.2...v1.12.3) (2026-08-14)
 
 
