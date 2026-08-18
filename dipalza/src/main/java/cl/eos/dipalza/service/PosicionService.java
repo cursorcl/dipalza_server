@@ -6,6 +6,7 @@ import cl.eos.dipalza.entity.Vendedor;
 import cl.eos.dipalza.entity.ids.VendedorId;
 import cl.eos.dipalza.mapper.PosicionMapper;
 import cl.eos.dipalza.model.HistorialPosicionDTO;
+import cl.eos.dipalza.model.HistorialResumenDiaDTO;
 import cl.eos.dipalza.model.PosicionDTO;
 import cl.eos.dipalza.repository.HistorialPosicionRepository;
 import cl.eos.dipalza.repository.PosicionRepository;
@@ -18,6 +19,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Service
@@ -52,6 +54,15 @@ public class PosicionService {
         return historialRepository.findAll(HistorialPosicionSpecifications.conFiltros(filter))
                 .stream()
                 .map(PosicionMapper::toHistorialDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<HistorialResumenDiaDTO> buscarResumenHistorico(String vendedorCodigo, String vendedorTipo) {
+        var desde = LocalDate.now().minusDays(30).atStartOfDay();
+        return historialRepository.resumenPorDia(vendedorCodigo, vendedorTipo, desde)
+                .stream()
+                .map(p -> new HistorialResumenDiaDTO(p.getDia(), p.getCantidadPuntos(), p.getHoraInicio(), p.getHoraFin()))
                 .toList();
     }
 
